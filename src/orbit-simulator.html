@@ -1,0 +1,1230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Orbit Simulator</title>
+<style>
+@@include vendor/fonts.css
+</style>
+<style>
+/* Same instrument look as the Orrery: full-bleed 3D sky, plates with a gold hairline, control rail along the bottom */
+[hidden] { display: none !important; }
+:root {
+  --sky: #06080f;
+  --plate: rgba(14, 18, 30, 0.84);
+  --line: rgba(201, 164, 92, 0.28);
+  --fg: #e8e2d2;
+  --muted: #9a968a;
+  --accent: #c9a45c;
+  --accent-hi: #e9c98a;
+  --plan: #6fd3e8;
+  --warn: #e8846a;
+  --pro: #d6dc5a;
+  --nrm: #d07ae0;
+  --rad: #5fc7e0;
+  --font-display: "Marcellus", "Trajan Pro", Georgia, serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--sky); color: var(--fg);
+  font-family: var(--font-body); font-size: 14px;
+  overflow: hidden; position: relative;
+}
+#scene { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+#scene.pick { cursor: pointer; }
+#labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.label {
+  position: absolute; left: 0; top: 0; white-space: nowrap;
+  font-family: var(--font-data); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--fg); opacity: 0.9; text-shadow: 0 0 4px var(--sky), 0 0 2px var(--sky);
+  will-change: transform;
+}
+.label.apsis { color: var(--accent-hi); }
+.label.apsis.plan { color: var(--plan); }
+.label.node { color: var(--muted); }
+.label.ref { color: var(--muted); font-size: 10px; }
+.label.craft { color: #fff; }
+.label.warn { color: var(--warn); }
+.label.ghost { color: var(--plan); opacity: 0.95; }
+.marker { position: absolute; left: 0; top: 0; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; will-change: transform; }
+.marker.ghost { border: 1.5px solid var(--plan); box-sizing: border-box; }
+.marker.node { width: 16px; height: 16px; margin: -8px 0 0 -8px; border: 2px solid var(--plan); box-sizing: border-box; background: rgba(111, 211, 232, 0.18); pointer-events: auto; cursor: pointer; }
+.handle {
+  position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border-radius: 50%; display: grid; place-items: center; box-sizing: border-box;
+  font: 600 11px/1 var(--font-body); color: var(--sky); pointer-events: auto; cursor: grab;
+  box-shadow: 0 0 0 2px rgba(6, 8, 15, 0.7); touch-action: none; user-select: none; will-change: transform;
+}
+.handle:hover, .handle.drag { box-shadow: 0 0 0 2px #fff; }
+.handle.drag { cursor: grabbing; }
+.handle.pro { background: var(--pro); }
+.handle.nrm { background: var(--nrm); }
+.handle.rad { background: var(--rad); }
+.handle.anti { background: transparent; border: 2px solid; color: inherit; }
+.handle.anti.pro { color: var(--pro); border-color: var(--pro); }
+.handle.anti.nrm { color: var(--nrm); border-color: var(--nrm); }
+.handle.anti.rad { color: var(--rad); border-color: var(--rad); }
+
+.plate {
+  background: var(--plate); border: 1px solid var(--line); border-radius: 6px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.caption { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+#title {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: max(16px, env(safe-area-inset-left, 0px));
+  padding: 12px 16px; display: grid; gap: 4px; width: min(320px, calc(100% - 32px)); box-sizing: border-box;
+}
+#title h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 22px; letter-spacing: 0.08em; color: var(--accent-hi); }
+#clock { font-family: var(--font-data); font-size: 15px; font-variant-numeric: tabular-nums; white-space: pre; }
+#status { font-size: 12px; color: var(--muted); line-height: 1.45; }
+#status b { color: var(--fg); font-weight: 500; }
+#flash { font-size: 12px; color: var(--plan); line-height: 1.4; min-height: 0; }
+#flash:empty { display: none; }
+#presetNote { font-size: 12px; color: var(--muted); line-height: 1.45; border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; }
+
+#maneuver {
+  position: fixed; left: max(16px, env(safe-area-inset-left, 0px));
+  top: calc(env(safe-area-inset-top, 0px) + 16px); /* moved below the title plate by script */
+  width: min(320px, calc(100% - 32px)); box-sizing: border-box; padding: 10px 0 10px;
+  max-height: calc(100% - 300px); overflow-y: auto;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 14px 8px; border-bottom: 1px solid var(--line); }
+.panel-head h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.panel-head span { font-size: 11px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.mrow { padding: 8px 14px 4px; }
+.mrow .top { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+.mrow .axis { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.stepper button { font: 500 14px var(--font-data); width: 28px; height: 28px; border: 0; background: rgba(232, 226, 210, 0.06); color: var(--fg); cursor: pointer; touch-action: manipulation; user-select: none; }
+.stepper button:hover { background: rgba(201, 164, 92, 0.18); }
+.stepper input { width: 74px; height: 28px; box-sizing: border-box; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: transparent; color: var(--fg); font: 12px var(--font-data); text-align: right; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.stepper input:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+.mrow .hint { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 4px; }
+.msum { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px 14px; margin-top: 4px; border-top: 1px solid var(--line); font-size: 12px; }
+.msum .v { font-family: var(--font-data); text-align: right; font-variant-numeric: tabular-nums; }
+.mbtns { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 0; }
+.place { padding: 10px 14px 2px; display: grid; gap: 6px; }
+.place p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.stepsize { display: flex; align-items: center; gap: 8px; padding: 8px 14px 0; }
+
+#elements {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  right: max(16px, env(safe-area-inset-right, 0px));
+  width: 320px; max-height: calc(100% - 150px); overflow-y: auto; padding: 10px 0 6px; box-sizing: border-box;
+}
+.cols { display: grid; grid-template-columns: 1fr 92px 92px; padding: 6px 14px 0; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cols span:not(:first-child) { text-align: right; }
+.cols .p { color: var(--plan); }
+.group-head { padding: 10px 14px 2px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.erow { display: block; width: 100%; box-sizing: border-box; border: 0; background: none; color: inherit; font: inherit; text-align: left; padding: 5px 14px; cursor: pointer; }
+.erow:hover { background: rgba(201, 164, 92, 0.08); }
+.erow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.erow.open { background: rgba(201, 164, 92, 0.12); }
+.erow .line { display: grid; grid-template-columns: 1fr 92px 92px; align-items: baseline; }
+.erow .n { font-weight: 500; }
+.erow .n small { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 4px; }
+.erow .c, .erow .p { font-family: var(--font-data); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.erow .p { color: var(--plan); }
+.erow .warn { color: var(--warn); }
+.erow .x { display: none; font-size: 12px; color: var(--muted); line-height: 1.5; padding: 6px 0 4px; }
+.erow.open .x { display: block; }
+.erow .x em { color: var(--fg); font-style: normal; }
+#elements footer { padding: 8px 14px 4px; font-size: 11px; color: var(--muted); line-height: 1.45; border-top: 1px solid var(--line); margin-top: 6px; }
+
+#controls {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  width: min(1080px, calc(100% - 32px)); box-sizing: border-box;
+  padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+}
+.group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.speed { flex: 1 1 240px; min-width: 0; }
+button.btn {
+  font: 500 12px var(--font-body); letter-spacing: 0.04em; color: var(--fg);
+  background: rgba(232, 226, 210, 0.06); border: 1px solid var(--line); border-radius: 4px;
+  padding: 7px 10px; cursor: pointer; min-height: 32px;
+}
+button.btn:hover:not(:disabled) { border-color: var(--accent); }
+button.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.btn:disabled { opacity: 0.4; cursor: default; }
+button.btn[aria-pressed="true"] { background: var(--accent); color: var(--sky); border-color: var(--accent); }
+button.btn.small { min-height: 26px; padding: 4px 9px; font-size: 11px; }
+button.btn.go { border-color: var(--plan); color: var(--plan); }
+button.btn.go:hover:not(:disabled) { background: rgba(111, 211, 232, 0.12); border-color: var(--plan); }
+button.btn.primary { min-width: 70px; }
+#warpLabel { font-family: var(--font-data); font-size: 12px; min-width: 120px; font-variant-numeric: tabular-nums; color: var(--accent-hi); }
+input[type="range"] { flex: 1 1 120px; min-width: 80px; accent-color: var(--accent); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button.btn { border: 0; border-radius: 0; }
+.seg button.btn + button.btn { border-left: 1px solid var(--line); }
+select.btn {
+  font: 500 12px var(--font-body); color: var(--fg); background: rgba(14, 18, 30, 0.9);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-height: 32px; cursor: pointer; max-width: 230px;
+}
+select.btn:hover { border-color: var(--accent); }
+
+#webglError { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; color: var(--muted); }
+
+@media (max-width: 860px) {
+  #title { padding: 8px 12px; }
+  #title h1 { font-size: 17px; }
+  #presetNote { display: none; }
+  #elements { top: auto; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 160px); max-height: 40%; }
+  #maneuver { max-height: 38%; }
+  #controls { padding: 8px 10px; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="3D view of a spacecraft orbiting Earth. Drag to rotate, scroll or pinch to zoom, click the orbit to plan a burn."></canvas>
+<div id="labels"></div>
+
+<section id="title" class="plate">
+  <h1>Orbit Simulator</h1>
+  <div id="clock">T+ 0d 00:00:00</div>
+  <div id="status"></div>
+  <div id="flash" role="status" aria-live="polite"></div>
+  <div id="presetNote"></div>
+</section>
+
+<section id="maneuver" class="plate" aria-label="Maneuver planner">
+  <div class="panel-head"><h2>Maneuver</h2><span id="nodeWhen">No burn planned</span></div>
+  <div id="placeBox" class="place">
+    <p>Click anywhere on your orbit to plan a burn there, or place one at a landmark:</p>
+    <div class="group">
+      <button class="btn small" type="button" data-place="pe" title="Periapsis, the lowest point">Periapsis</button>
+      <button class="btn small" type="button" data-place="ap" title="Apoapsis, the highest point">Apoapsis</button>
+      <button class="btn small" type="button" data-place="an" title="Ascending node, where the orbit crosses the equator heading north">Asc. node</button>
+      <button class="btn small" type="button" data-place="dn" title="Descending node, where the orbit crosses the equator heading south">Desc. node</button>
+      <button class="btn small" type="button" data-place="now" title="A few seconds ahead of the craft">Now</button>
+    </div>
+  </div>
+  <div id="nodeBox" hidden>
+    <div class="mrow" data-axis="0">
+      <div class="top"><span class="axis"><i class="swatch" style="background:var(--pro)"></i>Prograde</span>
+        <span class="stepper"><button type="button" data-step="-1" aria-label="Less prograde">−</button><input type="text" inputmode="decimal" aria-label="Prograde change in m/s"><button type="button" data-step="1" aria-label="More prograde">+</button></span></div>
+      <div class="hint">Along your direction of travel. Speeding up raises the far side of the orbit; negative (retrograde) lowers it.</div>
+    </div>
+    <div class="mrow" data-axis="1">
+      <div class="top"><span class="axis"><i class="swatch" style="background:var(--nrm)"></i>Normal</span>
+        <span class="stepper"><button type="button" data-step="-1" aria-label="Less normal">−</button><input type="text" inputmode="decimal" aria-label="Normal change in m/s"><button type="button" data-step="1" aria-label="More normal">+</button></span></div>
+      <div class="hint">Square to the orbit plane. Tilts the orbit, changing inclination; pivots about this point.</div>
+    </div>
+    <div class="mrow" data-axis="2">
+      <div class="top"><span class="axis"><i class="swatch" style="background:var(--rad)"></i>Radial</span>
+        <span class="stepper"><button type="button" data-step="-1" aria-label="Less radial">−</button><input type="text" inputmode="decimal" aria-label="Radial change in m/s"><button type="button" data-step="1" aria-label="More radial">+</button></span></div>
+      <div class="hint">Away from (positive) or towards Earth. Rotates the ellipse around you rather than resizing it.</div>
+    </div>
+    <div class="stepsize"><span class="caption">Step</span>
+      <div class="seg" role="group" aria-label="Step size">
+        <button class="btn small" type="button" data-size="1" aria-pressed="false">1</button>
+        <button class="btn small" type="button" data-size="10" aria-pressed="true">10</button>
+        <button class="btn small" type="button" data-size="100" aria-pressed="false">100 m/s</button>
+      </div>
+    </div>
+    <div class="msum">
+      <span>Total Δv (change in speed)</span><span class="v" id="dvTotal">0 m/s</span>
+      <span>Burn in</span><span class="v" id="dvWhen">—</span>
+    </div>
+    <div class="mbtns">
+      <button class="btn small go" type="button" id="goNode" title="Fast-forward to the burn and carry it out">Warp &amp; burn</button>
+      <button class="btn small" type="button" id="circNode" title="Set the burn that makes the orbit a circle at this point">Circularise</button>
+      <button class="btn small" type="button" id="zeroNode">Zero</button>
+      <button class="btn small" type="button" id="delNode">Delete</button>
+    </div>
+  </div>
+</section>
+
+<aside id="elements" class="plate" aria-label="Orbital elements">
+  <div class="panel-head"><h2>Orbit</h2><span>Tap a row to learn more</span></div>
+  <div class="cols"><span></span><span>Now</span><span class="p" id="colPlan">After burn</span></div>
+  <div id="erows"></div>
+  <footer>Altitudes are above Earth's equatorial surface (6,378 km radius). Gravity is a perfect point mass: no air drag, no Moon, and none of the slow twisting caused by Earth's equatorial bulge. Burns are instant. Earth map: Solar System Scope, CC BY 4.0.</footer>
+</aside>
+
+<div id="controls" class="plate" role="toolbar" aria-label="Simulation controls">
+  <div class="group">
+    <button class="btn primary" id="play" type="button">Pause</button>
+    <button class="btn" id="undo" type="button" title="Undo the last burn" disabled>Undo burn</button>
+  </div>
+  <div class="group speed">
+    <label class="caption" for="warp">Time warp</label>
+    <input type="range" id="warp" min="0" max="1000" step="1" value="460">
+    <span id="warpLabel">—</span>
+  </div>
+  <div class="group">
+    <label class="caption" for="preset">Start</label>
+    <select class="btn" id="preset" aria-label="Starting orbit"></select>
+    <button class="btn" id="reset" type="button" title="Start this orbit again">Reset</button>
+  </div>
+  <div class="group">
+    <span class="caption">View</span>
+    <div class="seg" role="group" aria-label="Viewing angle">
+      <button class="btn" id="view3d" type="button" aria-pressed="true">3D</button>
+      <button class="btn" id="viewTop" type="button" aria-pressed="false" title="Look down on the equator from above the North Pole">Top-down</button>
+      <button class="btn" id="viewPlane" type="button" aria-pressed="false" title="Look straight down on the orbit itself">Face-on</button>
+    </div>
+    <button class="btn" id="fit" type="button" title="Zoom to fit the orbit">Fit</button>
+    <button class="btn" id="togglePanel" type="button" aria-pressed="true" title="Show or hide the orbit panel">Orbit panel</button>
+  </div>
+</div>
+
+<div id="webglError" hidden>This simulator needs WebGL, which this browser or device has turned off.</div>
+
+<script>
+@@include vendor/three.min.js
+</script>
+<script>
+@@include vendor/OrbitControls.js
+</script>
+<script>
+@@include vendor/textures.js
+</script>
+<script>
+(() => {
+"use strict";
+
+// ---------- Constants (km, s) ----------
+const MU = 398600.4418;          // Earth's gravitational parameter, km^3/s^2
+const RE = 6378.137;             // equatorial radius, km
+const SOI = 924000;              // Earth's sphere of influence around the Sun, km
+const SIDEREAL = 86164.0905;     // one rotation of Earth, s
+const S = 1 / 1000;              // scene units per km
+const TAU = Math.PI * 2;
+const DEG = Math.PI / 180;
+const N_SAMPLES = 720;
+
+// ---------- Small vector helpers (physics frame: x = reference direction, z = north) ----------
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const mul = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const len = a => Math.hypot(a[0], a[1], a[2]);
+const unit = a => mul(a, 1 / len(a));
+const mod = (x, m) => ((x % m) + m) % m;
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+// physics (x, y, z-north) -> three.js (x, y-up, z)
+const toV3 = (p, out = new THREE.Vector3()) => out.set(p[0] * S, p[2] * S, -p[1] * S);
+const dirV3 = (p, out = new THREE.Vector3()) => out.set(p[0], p[2], -p[1]).normalize();
+
+// ---------- Two-body orbit, built from a position and velocity at time t ----------
+function makeOrbit(r, v, t) {
+  const rm = len(r);
+  const h = cross(r, v), hm = len(h);
+  let ev = sub(mul(r, (dot(v, v) - MU / rm) / MU), mul(v, dot(r, v) / MU));
+  let e = len(ev);
+  const W = mul(h, 1 / hm);
+  let P;
+  if (e > 1e-9) P = mul(ev, 1 / e); else { e = 0; P = mul(r, 1 / rm); }
+  if (Math.abs(e - 1) < 1e-7) e = 1 - 1e-7; // dodge the exactly-parabolic case
+  const Q = cross(W, P);
+  const p = hm * hm / MU;
+  const a = p / (1 - e * e);
+  const o = { t0: t, e, p, a, P, Q, W, hm, energy: -MU / (2 * a) };
+  o.n = e < 1 ? Math.sqrt(MU / (a * a * a)) : Math.sqrt(MU / (-a * a * a));
+  o.period = e < 1 ? TAU / o.n : Infinity;
+  o.nu0 = Math.atan2(dot(r, Q), dot(r, P));
+  o.M0 = meanFromNu(o, o.nu0);
+  analyse(o);
+  return o;
+}
+
+function meanFromNu(o, nu) {
+  const e = o.e;
+  if (e < 1) {
+    const E = 2 * Math.atan2(Math.sqrt(1 - e) * Math.sin(nu / 2), Math.sqrt(1 + e) * Math.cos(nu / 2));
+    return E - e * Math.sin(E);
+  }
+  const H = 2 * Math.atanh(Math.sqrt((e - 1) / (e + 1)) * Math.tan(nu / 2));
+  return e * Math.sinh(H) - H;
+}
+
+function nuAt(o, t) {
+  const e = o.e;
+  let M = o.M0 + o.n * (t - o.t0);
+  if (e < 1) {
+    M = mod(M + Math.PI, TAU) - Math.PI;
+    let E = e < 0.8 ? M : Math.PI * Math.sign(M || 1);
+    for (let i = 0; i < 50; i++) {
+      const d = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+      E -= d;
+      if (Math.abs(d) < 1e-12) break;
+    }
+    return 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2));
+  }
+  let H = Math.abs(M) > 6 * e ? Math.sign(M) * Math.log(2 * Math.abs(M) / e + 1.8) : Math.asinh(M / e);
+  for (let i = 0; i < 80; i++) {
+    const d = (e * Math.sinh(H) - H - M) / (e * Math.cosh(H) - 1);
+    H -= d;
+    if (Math.abs(d) < 1e-12) break;
+  }
+  return 2 * Math.atan(Math.sqrt((e + 1) / (e - 1)) * Math.tanh(H / 2));
+}
+
+// The next time (after `after`) the craft passes true anomaly nu, or null if it never will.
+function timeToNu(o, nu, after) {
+  const Mt = meanFromNu(o, nu);
+  if (o.e < 1) {
+    const Mnow = o.M0 + o.n * (after - o.t0);
+    return after + mod(Mt - Mnow, TAU) / o.n;
+  }
+  const t = o.t0 + (Mt - o.M0) / o.n;
+  return t >= after - 1e-6 ? t : null;
+}
+
+function stateAtNu(o, nu) {
+  const c = Math.cos(nu), s = Math.sin(nu);
+  const r = o.p / (1 + o.e * c);
+  const k = Math.sqrt(MU / o.p);
+  return {
+    r: add(mul(o.P, r * c), mul(o.Q, r * s)),
+    v: add(mul(o.P, -k * s), mul(o.Q, k * (o.e + c))),
+  };
+}
+const radiusAt = (o, nu) => o.p / (1 + o.e * Math.cos(nu));
+
+// Work out the shape, orientation, what ends the path (impact, escape) and which arc to draw.
+function analyse(o) {
+  const e = o.e;
+  o.rp = o.p / (1 + e);
+  o.ra = e < 1 ? o.p / (1 - e) : Infinity;
+  o.nuInf = e >= 1 ? Math.acos(-1 / e) : null;
+  o.inc = Math.acos(clamp(o.W[2], -1, 1));
+  const N = cross([0, 0, 1], o.W), nm = len(N);
+  o.equatorial = nm < 1e-6;
+  if (!o.equatorial) {
+    o.raan = mod(Math.atan2(N[1], N[0]), TAU);
+    o.nuAN = Math.atan2(dot(N, o.Q), dot(N, o.P));
+    o.nuDN = o.nuAN + Math.PI;
+  }
+  o.circular = e < 1e-4;
+  if (!o.circular) {
+    o.argp = o.equatorial ? mod(Math.atan2(o.P[1], o.P[0]) * Math.sign(o.W[2] || 1), TAU)
+                          : mod(Math.atan2(dot(cross(unit(N), o.P), o.W), dot(unit(N), o.P)), TAU);
+  }
+  // What ends this path?
+  o.impact = o.rp < RE;
+  o.nuSurf = o.impact ? Math.acos(clamp((o.p / RE - 1) / e, -1, 1)) : null;
+  o.escape = o.ra > SOI;
+  o.nuSOI = o.escape ? Math.acos(clamp((o.p / SOI - 1) / e, -1, 1)) : null;
+  o.closed = !o.impact && !o.escape;
+  o.end = null;
+  if (!o.closed) {
+    // Travel forward in true anomaly from nu0 to the first ending event.
+    const cands = [];
+    if (e < 1) {
+      if (o.impact) cands.push({ type: "impact", dnu: mod(-o.nuSurf - o.nu0, TAU) });
+      if (o.escape) cands.push({ type: "escape", dnu: mod(o.nuSOI - o.nu0, TAU) });
+    } else {
+      if (o.impact && o.nu0 < -o.nuSurf) cands.push({ type: "impact", dnu: -o.nuSurf - o.nu0 });
+      cands.push({ type: "escape", dnu: Math.max(0, o.nuSOI - o.nu0) });
+    }
+    cands.sort((x, y) => x.dnu - y.dnu);
+    const c = cands[0];
+    o.end = { type: c.type, nu: o.nu0 + c.dnu, t: timeToNu(o, o.nu0 + c.dnu, o.t0) };
+    if (o.end.t === null) o.end.t = o.t0;
+  }
+  // Sample the arc to draw.
+  const nuA = o.closed ? 0 : o.nu0;
+  const nuB = o.closed ? TAU : o.end.nu;
+  o.samples = [];
+  for (let i = 0; i <= N_SAMPLES; i++) {
+    const nu = nuA + (nuB - nuA) * i / N_SAMPLES;
+    const r = radiusAt(o, nu);
+    const c = Math.cos(nu), s = Math.sin(nu);
+    o.samples.push({ nu, p: add(mul(o.P, r * c), mul(o.Q, r * s)) });
+  }
+  // Is a given true anomaly on the drawn (reachable) arc?
+  o.onArc = nu => {
+    if (o.closed) return true;
+    if (e < 1) return mod(nu - o.nu0, TAU) <= mod(o.end.nu - o.nu0, TAU) + 1e-9;
+    return nu >= o.nu0 - 1e-9 && nu <= o.end.nu + 1e-9;
+  };
+}
+
+// Build a state vector from classical elements (for the starting presets).
+function stateFromElements({ peAlt, apAlt, e: eIn, inc, raan, argp, nu }) {
+  const rp = RE + peAlt;
+  let e, p;
+  if (eIn !== undefined) { e = eIn; p = rp * (1 + e); }
+  else { const ra = RE + apAlt; e = (ra - rp) / (ra + rp); p = rp * (1 + e); }
+  const [cO, sO, cw, sw, ci, si] = [Math.cos(raan * DEG), Math.sin(raan * DEG), Math.cos(argp * DEG), Math.sin(argp * DEG), Math.cos(inc * DEG), Math.sin(inc * DEG)];
+  const P = [cO * cw - sO * sw * ci, sO * cw + cO * sw * ci, sw * si];
+  const Q = [-cO * sw - sO * cw * ci, -sO * sw + cO * cw * ci, cw * si];
+  return stateAtNu({ P, Q, e, p }, nu * DEG);
+}
+
+// ---------- Presets ----------
+const PRESETS = [
+  { id: "leo", name: "Low orbit over the equator", el: { peAlt: 400, apAlt: 400, inc: 0, raan: 0, argp: 0, nu: 0 },
+    note: "A circle 400 km up, above the equator, taking about 92 minutes. A good place to start: plan a prograde burn and watch the opposite side of the orbit rise." },
+  { id: "iss", name: "Space station orbit", el: { peAlt: 415, apAlt: 422, inc: 51.6, raan: 30, argp: 90, nu: 0 },
+    note: "Like the International Space Station: about 420 km up, every 92 minutes, tilted 51.6° to the equator so that rockets from Baikonur in Kazakhstan can reach it." },
+  { id: "gto", name: "Geostationary transfer (GTO)", el: { peAlt: 250, apAlt: 35786, inc: 28.5, raan: 0, argp: 180, nu: 0 },
+    note: "Where a rocket from Florida drops off a communications satellite. The satellite later burns at apoapsis, which here sits on the equator, to round out the orbit and remove the 28.5° tilt at once." },
+  { id: "geo", name: "Geostationary (GEO)", el: { peAlt: 35786, apAlt: 35786, inc: 0, raan: 0, argp: 0, nu: 0 },
+    note: "35,786 km up, one lap per sidereal day (23 h 56 m), the same time Earth takes to spin. Seen from the ground, the satellite hangs still in the sky." },
+  { id: "molniya", name: "Molniya orbit", el: { peAlt: 600, apAlt: 39700, inc: 63.4, raan: 0, argp: 270, nu: 180 },
+    note: "A long, 12-hour ellipse used by Russian satellites. They linger for hours near apoapsis, high above the far north, and dash through periapsis over the south." },
+  { id: "polar", name: "Sun-synchronous polar orbit", el: { peAlt: 700, apAlt: 700, inc: 98.2, raan: 90, argp: 0, nu: 0 },
+    note: "Passes close to both poles, so Earth turns beneath it and it sees the whole surface. The extra 8° past polar makes the orbit twist once a year with the Sun, an effect of Earth's bulge that this simulator leaves out." },
+  { id: "sub", name: "Suborbital hop", el: { peAlt: -2000, apAlt: 1500, inc: 0, raan: 0, argp: 0, nu: 125 },
+    note: "Too slow to orbit: the ellipse dips underground, so the path ends on the surface. Try a prograde burn near apoapsis to lift periapsis clear of Earth." },
+  { id: "esc", name: "Escape trajectory", el: { peAlt: 400, e: 1.15, inc: 0, raan: 0, argp: 0, nu: -60 },
+    note: "Faster than escape speed: the path is a hyperbola and never comes back. A retrograde burn at periapsis, where it is moving fastest, is the cheapest way to be captured into orbit." },
+];
+
+// ---------- Simulation state ----------
+const sim = {
+  t: 0, running: true, warp: 100, orbit: null, ended: null, endPos: null,
+  node: null, plan: null, history: [], preset: PRESETS[0], goTo: null, stepSize: 10,
+};
+
+// ---------- three.js scene ----------
+const canvas = document.getElementById("scene");
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true }); }
+catch (err) { document.getElementById("webglError").hidden = false; return; }
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 20000);
+camera.position.set(25, 15, 29);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 8;
+controls.maxDistance = 4000;
+controls.enablePan = false;
+
+scene.add(new THREE.AmbientLight(0x404858, 0.9));
+const sunLight = new THREE.DirectionalLight(0xfff4e0, 1.25);
+sunLight.position.set(60, 20, 35);
+scene.add(sunLight);
+
+// Stars
+{
+  const n = 2200, pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * 2 - 1, th = Math.random() * TAU, r = 9000, s = Math.sqrt(1 - u * u);
+    pos.set([r * s * Math.cos(th), r * u, r * s * Math.sin(th)], i * 3);
+    const b = 0.35 + Math.random() ** 3 * 0.65, warm = Math.random() * 0.15;
+    col.set([b, b * (1 - warm * 0.3), b * (1 - warm)], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true })));
+}
+
+// Earth
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(RE * S, 96, 64),
+  new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 6, specular: 0x0c0f14 })
+);
+new THREE.TextureLoader().load(TEXTURES.Earth, tex => {
+  tex.encoding = THREE.sRGBEncoding;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  earth.material.map = tex; earth.material.needsUpdate = true;
+});
+earth.material.color.set(0x3a6ea8);
+scene.add(earth);
+// thin atmosphere rim
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(RE * S * 1.02, 64, 48),
+  new THREE.MeshBasicMaterial({ color: 0x6fa8ff, transparent: true, opacity: 0.08, side: THREE.BackSide })));
+
+// Equatorial reference plane: faint rings, spokes, the reference direction and Earth's axis
+const GOLD = 0xc9a45c;
+function lineFrom(points, color, opacity, dashed) {
+  const g = new THREE.BufferGeometry().setFromPoints(points);
+  const m = dashed
+    ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.6, gapSize: 0.5 })
+    : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const l = new THREE.Line(g, m);
+  if (dashed) l.computeLineDistances();
+  return l;
+}
+const refGroup = new THREE.Group();
+scene.add(refGroup);
+for (const rkm of [10000, 20000, 42164, 80000, 160000, 320000]) {
+  const pts = [];
+  for (let i = 0; i <= 256; i++) { const a = i / 256 * TAU; pts.push(toV3([rkm * Math.cos(a), rkm * Math.sin(a), 0])); }
+  refGroup.add(lineFrom(pts, GOLD, rkm === 42164 ? 0.2 : 0.1));
+}
+for (let k = 0; k < 12; k++) {
+  const a = k / 12 * TAU;
+  refGroup.add(lineFrom([toV3([RE * 1.05 * Math.cos(a), RE * 1.05 * Math.sin(a), 0]), toV3([320000 * Math.cos(a), 320000 * Math.sin(a), 0])], GOLD, k === 0 ? 0.35 : 0.05));
+}
+refGroup.add(lineFrom([toV3([0, 0, -RE * 1.7]), toV3([0, 0, RE * 1.7])], 0x9a968a, 0.5));
+
+// Orbit lines
+function orbitLine(color, dashed, opacity) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array((N_SAMPLES + 1) * 3), 3));
+  const m = dashed
+    ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.35, gapSize: 0.25 })
+    : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const l = new THREE.Line(g, m);
+  l.frustumCulled = false;
+  scene.add(l);
+  return l;
+}
+const curLine = orbitLine(0xe9c98a, false, 0.95);
+const planLine = orbitLine(0x6fd3e8, true, 0.95);
+const nodesLine = lineFrom([new THREE.Vector3(), new THREE.Vector3()], 0x9a968a, 0.45, true);
+nodesLine.frustumCulled = false;
+scene.add(nodesLine);
+function setLine(line, o) {
+  const arr = line.geometry.attributes.position.array, v = new THREE.Vector3();
+  o.samples.forEach((s, i) => { toV3(s.p, v); arr[i * 3] = v.x; arr[i * 3 + 1] = v.y; arr[i * 3 + 2] = v.z; });
+  line.geometry.attributes.position.needsUpdate = true;
+  line.geometry.computeBoundingSphere();
+  if (line.material.isLineDashedMaterial) line.computeLineDistances();
+}
+
+// Burn handle guide lines (one segment per direction)
+const handleLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8 }));
+handleLines.geometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(36), 3));
+{
+  const cols = [[0.84, 0.86, 0.35], [0.84, 0.86, 0.35], [0.82, 0.48, 0.88], [0.82, 0.48, 0.88], [0.37, 0.78, 0.88], [0.37, 0.78, 0.88]];
+  const c = new Float32Array(36);
+  cols.forEach((rgb, i) => { c.set(rgb, i * 6); c.set(rgb, i * 6 + 3); });
+  handleLines.geometry.setAttribute("color", new THREE.BufferAttribute(c, 3));
+}
+handleLines.frustumCulled = false;
+scene.add(handleLines);
+
+// Spacecraft: a glowing point
+function glowTexture() {
+  const c = document.createElement("canvas"); c.width = c.height = 64;
+  const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.18, "rgba(255,250,235,0.95)");
+  gr.addColorStop(0.4, "rgba(233,201,138,0.35)"); gr.addColorStop(1, "rgba(233,201,138,0)");
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+const craft = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), depthWrite: false, sizeAttenuation: false }));
+craft.scale.set(0.045, 0.045, 1);
+scene.add(craft);
+
+// ---------- HTML labels and markers ----------
+const labelsEl = document.getElementById("labels");
+function el(cls, text, tag = "div") {
+  const d = document.createElement(tag); d.className = cls; if (text) d.textContent = text; labelsEl.appendChild(d); return d;
+}
+const L = {
+  craft: el("label craft", "Craft"),
+  ap: el("label apsis"), pe: el("label apsis"),
+  pap: el("label apsis plan"), ppe: el("label apsis plan"),
+  an: el("label node", "AN"), dn: el("label node", "DN"),
+  pan: el("label node"), pdn: el("label node"),
+  end: el("label warn"), pend: el("label warn"),
+  ref: el("label ref", "♈ reference direction"), north: el("label ref", "N"),
+  geo: el("label ref", "GEO"),
+  ghostDot: el("marker ghost"), ghost: el("label ghost"),
+  nodeDot: el("marker node"),
+};
+L.nodeDot.title = "Planned burn";
+const markerDots = {};
+for (const k of ["ap", "pe", "pap", "ppe", "an", "dn"]) {
+  const d = el("marker");
+  d.style.cssText = "width:6px;height:6px;margin:-3px 0 0 -3px;";
+  d.style.background = k.startsWith("p") && k !== "pe" ? "var(--plan)" : (k === "an" || k === "dn" ? "var(--muted)" : "var(--accent-hi)");
+  markerDots[k] = d;
+}
+const HANDLES = [
+  { axis: 0, sign: 1, cls: "pro", glyph: "▲", name: "Prograde" },
+  { axis: 0, sign: -1, cls: "pro anti", glyph: "▼", name: "Retrograde" },
+  { axis: 1, sign: 1, cls: "nrm", glyph: "N", name: "Normal" },
+  { axis: 1, sign: -1, cls: "nrm anti", glyph: "N", name: "Anti-normal" },
+  { axis: 2, sign: 1, cls: "rad", glyph: "R", name: "Radial out" },
+  { axis: 2, sign: -1, cls: "rad anti", glyph: "R", name: "Radial in" },
+];
+for (const h of HANDLES) {
+  h.el = el("handle " + h.cls, h.glyph);
+  h.el.title = h.name + " (drag to add Δv; hold Shift for fine control)";
+}
+
+const proj = new THREE.Vector3();
+let W = 1, H = 1;
+// Project a scene point to screen pixels; returns null if behind the camera.
+function screenOf(v3) {
+  proj.copy(v3).project(camera);
+  if (proj.z > 1 || proj.z < -1) return null;
+  return { x: (proj.x + 1) / 2 * W, y: (1 - proj.y) / 2 * H };
+}
+// Is a scene point hidden behind Earth from the camera's point of view?
+function behindEarth(v3) {
+  const c = camera.position, R = RE * S * 0.995;
+  const dx = v3.x - c.x, dy = v3.y - c.y, dz = v3.z - c.z;
+  const a = dx * dx + dy * dy + dz * dz, b = 2 * (c.x * dx + c.y * dy + c.z * dz), cc = c.lengthSq() - R * R;
+  const disc = b * b - 4 * a * cc;
+  if (disc <= 0) return false;
+  const t = (-b - Math.sqrt(disc)) / (2 * a);
+  return t > 0 && t < 0.999;
+}
+function place(elm, v3, dx = 0, dy = 0, always = false) {
+  const s = screenOf(v3);
+  if (!s || (!always && behindEarth(v3))) { elm.style.display = "none"; return null; }
+  elm.style.display = "";
+  elm.style.transform = `translate(${(s.x + dx).toFixed(1)}px, ${(s.y + dy).toFixed(1)}px)`;
+  return s;
+}
+const hide = (...els) => els.forEach(e => { e.style.display = "none"; });
+
+// ---------- Formatting ----------
+const nf0 = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmtKm = x => !isFinite(x) ? "∞" : Math.abs(x) >= 1e6 ? nf1.format(x / 1e6) + "M km" : nf0.format(x) + " km";
+const fmtDeg = x => nf1.format((Math.round(x / DEG * 10) / 10) % 360 || 0) + "°";
+function fmtDur(s) {
+  if (s === null || !isFinite(s)) return "—";
+  s = Math.max(0, s);
+  if (s < 60) return `${Math.floor(s)} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} m ${String(Math.floor(s % 60)).padStart(2, "0")} s`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ${String(Math.floor(s % 3600 / 60)).padStart(2, "0")} m`;
+  return `${Math.floor(s / 86400)} d ${Math.floor(s % 86400 / 3600)} h`;
+}
+function fmtClock(t) {
+  const d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
+  return `T+ ${d}d ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+const fmtMs = v => nf0.format(v * 1000) + " m/s";
+
+// ---------- Orbital elements panel ----------
+const ROWS = [
+  { group: "Shape" },
+  { key: "ap", name: "Apoapsis", sub: "apogee",
+    x: "The <em>highest point</em> of the orbit. Around Earth it is also called apogee. The cheapest way to raise it is a <em>prograde burn at periapsis</em>, on the opposite side: speed added at one point lifts the orbit on the far side." },
+  { key: "pe", name: "Periapsis", sub: "perigee",
+    x: "The <em>lowest point</em> (perigee around Earth). Raise it with a <em>prograde burn at apoapsis</em>. Below about 100 km the air would drag a real craft down; below zero the path hits the ground." },
+  { key: "a", name: "Semi-major axis",
+    x: "Half the longest width of the ellipse, the average of the highest and lowest distances from Earth's centre. On its own it sets the <em>period</em> and the <em>orbital energy</em>: two orbits with the same semi-major axis take the same time, however stretched. For an escape path it is negative." },
+  { key: "e", name: "Eccentricity",
+    x: "How stretched the orbit is. <em>0</em> is a perfect circle, <em>0 to 1</em> an ellipse, exactly <em>1</em> a parabola (just enough speed to escape), and <em>above 1</em> a hyperbola that never returns." },
+  { key: "T", name: "Period",
+    x: "Time for one lap. By Kepler's third law it depends only on the semi-major axis: T = 2π√(a³/μ). Low orbits take about 90 minutes; at 35,786 km it is one Earth day, which is why geostationary satellites hover." },
+  { key: "E", name: "Orbital energy", sub: "per kg",
+    x: "Kinetic plus gravitational energy for each kilogram: v²/2 − μ/r. <em>Negative</em> means the craft is bound to Earth; at <em>zero</em> or above it escapes. A prograde burn adds the most energy where the craft is already fastest, which is why burns at periapsis are so effective (the Oberth effect)." },
+  { group: "Orientation" },
+  { key: "i", name: "Inclination",
+    x: "The tilt of the orbit against Earth's equator. <em>0°</em> follows the equator eastwards, <em>90°</em> crosses the poles, above 90° runs westwards against Earth's spin. Change it with a <em>normal</em> or <em>anti-normal</em> burn where the orbit crosses the equator (the nodes), ideally far out where you move slowly: tilting a fast orbit is very expensive." },
+  { key: "raan", name: "Ascending node", sub: "RAAN",
+    x: "Right ascension of the ascending node: the direction, measured round the equator from the fixed <em>♈ reference direction</em> (towards the stars, not a place on Earth), where the orbit crosses the equator heading north. With inclination it fixes the orbit's plane in space. Undefined for an orbit along the equator." },
+  { key: "w", name: "Arg. of periapsis",
+    x: "Argument of periapsis: where the lowest point sits within the orbit's plane, measured in the direction of travel from the ascending node. A <em>radial</em> burn swings the ellipse round, changing this angle. Undefined for a circle. For an orbit along the equator the angle is measured from ♈ instead." },
+  { group: "Where you are now" },
+  { key: "alt", name: "Altitude", now: true, x: "Height above Earth's surface (equatorial radius)." },
+  { key: "v", name: "Speed", now: true,
+    x: "How fast the craft moves relative to Earth's centre. The vis-viva law ties speed to distance: v² = μ(2/r − 1/a). So the craft is <em>fastest at periapsis</em> and <em>slowest at apoapsis</em>, like a ball rolling down and back up a hill." },
+  { key: "vesc", name: "Escape speed", now: true,
+    x: "The speed needed here to leave Earth for good: √(2μ/r), about 41% more than circular-orbit speed at the same height. Push the speed past it and the orbit turns into a hyperbola." },
+  { key: "nu", name: "True anomaly", now: true,
+    x: "Where the craft is along its orbit: the angle from periapsis, measured round Earth's centre in the direction of travel. 0° at periapsis, 180° at apoapsis." },
+  { key: "tap", name: "Time to apoapsis", now: true, x: "How long until the craft next reaches its highest point." },
+  { key: "tpe", name: "Time to periapsis", now: true, x: "How long until the craft next reaches its lowest point." },
+];
+const erows = document.getElementById("erows");
+const cells = {};
+for (const r of ROWS) {
+  if (r.group) { const d = document.createElement("div"); d.className = "group-head"; d.textContent = r.group; erows.appendChild(d); continue; }
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "erow"; b.setAttribute("aria-expanded", "false");
+  b.innerHTML = `<span class="line"><span class="n">${r.name}${r.sub ? `<small>${r.sub}</small>` : ""}</span><span class="c"></span><span class="p"></span></span><span class="x">${r.x}</span>`;
+  b.addEventListener("click", () => { const open = b.classList.toggle("open"); b.setAttribute("aria-expanded", String(open)); });
+  erows.appendChild(b);
+  cells[r.key] = { c: b.querySelector(".c"), p: b.querySelector(".p"), now: r.now };
+}
+
+function elementValues(o) {
+  const vals = {};
+  vals.ap = o.e >= 1 ? ["none (escaping)", false] : o.ra > SOI ? [fmtKm(o.ra - RE), "beyond Earth's reach"] : [fmtKm(o.ra - RE), false];
+  vals.pe = [fmtKm(o.rp - RE), o.impact ? "below the surface" : false];
+  vals.a = [fmtKm(o.a), false];
+  vals.e = [o.e.toFixed(4), false];
+  vals.T = [o.e < 1 ? fmtDur(o.period) : "—", false];
+  vals.E = [nf1.format(o.energy) + " MJ", false];
+  vals.i = [fmtDeg(o.inc), false];
+  vals.raan = [o.equatorial ? "—" : fmtDeg(o.raan), false];
+  vals.w = [o.circular ? "—" : fmtDeg(o.argp), false];
+  return vals;
+}
+function setCell(cell, val) {
+  const [text, warn] = val;
+  cell.textContent = text;
+  cell.classList.toggle("warn", !!warn);
+  cell.title = warn || "";
+}
+function updatePanel(cur) {
+  const o = sim.orbit, now = elementValues(o), plan = sim.plan ? elementValues(sim.plan) : null;
+  for (const k in now) {
+    setCell(cells[k].c, now[k]);
+    setCell(cells[k].p, plan ? plan[k] : ["", false]);
+  }
+  const rm = len(cur.r), vm = len(cur.v);
+  const nu = Math.atan2(dot(cur.r, o.Q), dot(cur.r, o.P));
+  setCell(cells.alt.c, [sim.ended === "impact" ? "0 km" : fmtKm(rm - RE), false]);
+  setCell(cells.v.c, [sim.ended === "impact" ? "0 km/s" : vm.toFixed(3) + " km/s", false]);
+  setCell(cells.vesc.c, [Math.sqrt(2 * MU / rm).toFixed(3) + " km/s", false]);
+  setCell(cells.nu.c, [fmtDeg(mod(nu, TAU)), false]);
+  const live = !sim.ended;
+  const tap = live && o.closed ? timeToNu(o, Math.PI, sim.t) - sim.t : null;
+  let tpe = live ? timeToNu(o, 0, sim.t) : null;
+  if (tpe !== null) tpe -= sim.t;
+  if (tpe !== null && !o.closed && !o.onArc(0)) tpe = null;
+  if (tpe !== null && !o.closed && o.end && tpe + sim.t > o.end.t) tpe = null;
+  setCell(cells.tap.c, [fmtDur(tap), false]);
+  setCell(cells.tpe.c, [fmtDur(tpe), false]);
+  for (const k of ["alt", "v", "vesc", "nu", "tap", "tpe"]) cells[k].p.textContent = "";
+  document.getElementById("colPlan").style.visibility = sim.plan ? "" : "hidden";
+}
+
+// ---------- Status line ----------
+function describe(o) {
+  if (o.e >= 1) return o.impact && o.end.type === "impact" ? "<b>Falling</b> towards Earth on an escape-speed path." : "<b>Escaping</b> Earth on a hyperbola. It will not come back.";
+  if (o.impact) return `<b>Suborbital.</b> The path meets the ground; impact in ${fmtDur(o.end.t - sim.t)}.`;
+  if (o.escape) return `<b>Leaving Earth.</b> Apoapsis lies beyond Earth's sphere of influence, where the Sun's pull takes over.`;
+  const shape = o.circular ? "Circular" : o.e < 0.05 ? "Nearly circular" : "Elliptical";
+  const plane = o.inc < 0.5 * DEG ? "along the equator" : o.inc > 179.5 * DEG ? "along the equator, westwards" : Math.abs(o.inc - Math.PI / 2) < 2 * DEG ? "over the poles" : o.inc > Math.PI / 2 ? "tilted, westwards" : "tilted";
+  return `<b>${shape} orbit</b>, ${plane}, one lap every ${fmtDur(o.period)}.`;
+}
+const statusEl = document.getElementById("status");
+const flashEl = document.getElementById("flash");
+let flashTimer = 0;
+function flash(msg, ms = 6000) {
+  flashEl.textContent = msg;
+  clearTimeout(flashTimer);
+  if (ms) flashTimer = setTimeout(() => { flashEl.textContent = ""; }, ms);
+}
+
+// ---------- Maneuver node ----------
+function burnFrame(st) {
+  const pro = unit(st.v), nrm = unit(cross(st.r, st.v)), rad = cross(pro, nrm);
+  return [pro, nrm, rad];
+}
+function nodeState() {
+  const st = stateAtNu(sim.orbit, sim.node.nu);
+  const f = burnFrame(st);
+  const dv = sim.node.dv;
+  const v2 = add(st.v, add(add(mul(f[0], dv[0]), mul(f[1], dv[1])), mul(f[2], dv[2])));
+  return { st, f, v2 };
+}
+function updatePlan() {
+  if (!sim.node) { sim.plan = null; planLine.visible = false; refreshNodeUI(); return; }
+  const { st, v2 } = nodeState();
+  const dvm = len(sim.node.dv);
+  sim.plan = dvm > 1e-7 ? makeOrbit(st.r, v2, sim.node.t) : null;
+  if (sim.plan) setLine(planLine, sim.plan);
+  planLine.visible = !!sim.plan;
+  refreshNodeUI();
+}
+function setNode(nu) {
+  const o = sim.orbit;
+  if (sim.ended) return;
+  if (!o.onArc(nu)) { flash("The craft never reaches that point on this path."); return; }
+  const t = timeToNu(o, nu, sim.t + 1);
+  if (t === null || (o.end && t > o.end.t)) { flash("The craft has already passed that point."); return; }
+  const keep = sim.node ? sim.node.dv : [0, 0, 0];
+  sim.node = { nu, t, dv: keep.slice() };
+  updatePlan();
+}
+function placeAt(which) {
+  const o = sim.orbit;
+  if (sim.ended) return;
+  if (which === "pe") return setNode(0);
+  if (which === "ap") return o.e < 1 && !o.escape ? setNode(Math.PI) : flash("This path has no apoapsis to reach.");
+  if (which === "an" || which === "dn") {
+    if (o.equatorial) return flash("The orbit lies along the equator, so it has no nodes. Plan a normal burn anywhere to tilt it.");
+    const nu = which === "an" ? o.nuAN : o.nuDN;
+    if (o.e >= 1 && Math.abs(Math.atan2(Math.sin(nu), Math.cos(nu))) >= o.nuInf) return flash("This escape path never crosses the equator there.");
+    return setNode(Math.atan2(Math.sin(nu), Math.cos(nu)));
+  }
+  if (which === "now") {
+    const nuNow = nuAt(o, sim.t + Math.max(5, sim.warp * 0.5));
+    return setNode(nuNow);
+  }
+}
+function deleteNode() { sim.node = null; sim.goTo = null; updatePlan(); }
+function executeBurn() {
+  const { st, v2 } = nodeState();
+  const dvm = len(sim.node.dv);
+  sim.history.push({ orbit: sim.orbit, t: sim.t, node: { ...sim.node, dv: sim.node.dv.slice() } });
+  sim.orbit = makeOrbit(st.r, v2, sim.node.t);
+  sim.t = sim.node.t;
+  sim.node = null; sim.goTo = null;
+  setLine(curLine, sim.orbit);
+  updatePlan();
+  flash(`Burn complete: ${fmtMs(dvm)} of Δv used.`);
+  document.getElementById("undo").disabled = false;
+}
+
+// Maneuver panel wiring
+const placeBox = document.getElementById("placeBox"), nodeBox = document.getElementById("nodeBox");
+const axisInputs = [...document.querySelectorAll(".mrow input")];
+function refreshNodeUI(skipInputs) {
+  const has = !!sim.node;
+  nodeBox.hidden = !has;
+  placeBox.querySelector("p").textContent = has
+    ? "Move the burn by clicking elsewhere on the orbit, or jump to:"
+    : "Click anywhere on your orbit to plan a burn there, or place one at a landmark:";
+  const o = sim.orbit;
+  placeBox.querySelectorAll("[data-place]").forEach(b => {
+    const w = b.dataset.place;
+    b.disabled = !!sim.ended || ((w === "an" || w === "dn") && o.equatorial) || (w === "ap" && (o.e >= 1 || o.escape));
+  });
+  if (!has) { document.getElementById("nodeWhen").textContent = "No burn planned"; return; }
+  if (!skipInputs) axisInputs.forEach((inp, i) => { if (document.activeElement !== inp) inp.value = nf0.format(sim.node.dv[i] * 1000); });
+  document.getElementById("dvTotal").textContent = fmtMs(len(sim.node.dv));
+}
+document.querySelectorAll("[data-place]").forEach(b => b.addEventListener("click", () => placeAt(b.dataset.place)));
+document.getElementById("delNode").addEventListener("click", deleteNode);
+document.getElementById("zeroNode").addEventListener("click", () => { if (sim.node) { sim.node.dv = [0, 0, 0]; updatePlan(); } });
+document.getElementById("goNode").addEventListener("click", () => {
+  if (!sim.node) return;
+  if (len(sim.node.dv) < 1e-7) { flash("Add some Δv first: drag a coloured handle or use the + buttons."); return; }
+  sim.goTo = sim.node.t; sim.running = true; syncPlay();
+});
+document.getElementById("circNode").addEventListener("click", () => {
+  if (!sim.node) return;
+  const st = stateAtNu(sim.orbit, sim.node.nu), f = burnFrame(st);
+  const rhat = unit(st.r), hhat = unit(cross(st.r, st.v));
+  const vt = mul(unit(cross(hhat, rhat)), Math.sqrt(MU / len(st.r)));
+  const d = sub(vt, st.v);
+  sim.node.dv = [dot(d, f[0]), dot(d, f[1]), dot(d, f[2])];
+  updatePlan();
+});
+document.querySelectorAll(".mrow").forEach(row => {
+  const axis = +row.dataset.axis, inp = row.querySelector("input");
+  row.querySelectorAll("button[data-step]").forEach(btn => {
+    let timer = 0, rep = 0;
+    const step = () => { if (!sim.node) return; sim.node.dv[axis] += +btn.dataset.step * sim.stepSize / 1000; sim.node.dv[axis] = Math.round(sim.node.dv[axis] * 1e6) / 1e6; updatePlan(); };
+    const stop = () => { clearTimeout(timer); clearInterval(rep); };
+    btn.addEventListener("pointerdown", e => { e.preventDefault(); step(); timer = setTimeout(() => { rep = setInterval(step, 70); }, 380); });
+    btn.addEventListener("pointerup", stop); btn.addEventListener("pointerleave", stop); btn.addEventListener("pointercancel", stop);
+    btn.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); step(); } });
+  });
+  inp.addEventListener("change", () => {
+    const v = parseFloat(inp.value.replace(/[^0-9.\-]/g, ""));
+    if (sim.node && isFinite(v)) { sim.node.dv[axis] = v / 1000; updatePlan(); }
+    else refreshNodeUI();
+  });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); });
+});
+document.querySelectorAll("[data-size]").forEach(b => b.addEventListener("click", () => {
+  sim.stepSize = +b.dataset.size;
+  document.querySelectorAll("[data-size]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+}));
+
+// Dragging the burn handles in the 3D view, as in Kerbal Space Program
+let drag = null;
+for (const h of HANDLES) {
+  h.el.addEventListener("pointerdown", e => {
+    if (!sim.node) return;
+    e.preventDefault(); e.stopPropagation();
+    h.el.setPointerCapture(e.pointerId);
+    const nodeScr = screenOf(toV3(stateAtNu(sim.orbit, sim.node.nu).r));
+    const hs = h.screen;
+    let dir = nodeScr && hs ? [hs.x - nodeScr.x, hs.y - nodeScr.y] : [0, -1];
+    const dl = Math.hypot(dir[0], dir[1]) || 1;
+    dir = [dir[0] / dl, dir[1] / dl];
+    drag = { h, x: e.clientX, y: e.clientY, dir, start: sim.node.dv[h.axis] };
+    h.el.classList.add("drag");
+    controls.enabled = false;
+  });
+  h.el.addEventListener("pointermove", e => {
+    if (!drag || drag.h !== h) return;
+    const d = (e.clientX - drag.x) * drag.dir[0] + (e.clientY - drag.y) * drag.dir[1];
+    const rate = e.shiftKey ? 0.0002 : 0.002; // km/s per pixel: 2 m/s, or 0.2 m/s with Shift
+    sim.node.dv[h.axis] = drag.start + h.sign * d * rate;
+    updatePlan();
+  });
+  const end = () => { if (drag && drag.h === h) { h.el.classList.remove("drag"); drag = null; controls.enabled = true; } };
+  h.el.addEventListener("pointerup", end); h.el.addEventListener("pointercancel", end);
+}
+
+// Hover and click on the orbit to place a burn
+let hover = null, downAt = null;
+function nearestOnOrbit(x, y) {
+  const o = sim.orbit; if (!o || sim.ended) return null;
+  let best = null, bd = 14 * 14;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < o.samples.length; i += 2) {
+    const s = screenOf(toV3(o.samples[i].p, v));
+    if (!s) continue;
+    const d = (s.x - x) ** 2 + (s.y - y) ** 2;
+    if (d < bd) { bd = d; best = o.samples[i]; }
+  }
+  return best;
+}
+canvas.addEventListener("pointermove", e => {
+  if (e.buttons) { hover = null; return; }
+  const r = canvas.getBoundingClientRect();
+  hover = nearestOnOrbit(e.clientX - r.left, e.clientY - r.top);
+  canvas.classList.toggle("pick", !!hover);
+});
+canvas.addEventListener("pointerleave", () => { hover = null; canvas.classList.remove("pick"); });
+canvas.addEventListener("pointerdown", e => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener("pointerup", e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) { downAt = null; return; }
+  downAt = null;
+  const r = canvas.getBoundingClientRect();
+  const hit = nearestOnOrbit(e.clientX - r.left, e.clientY - r.top);
+  if (hit) setNode(hit.nu);
+});
+
+// ---------- Controls ----------
+const playBtn = document.getElementById("play");
+function syncPlay() { playBtn.textContent = sim.running ? "Pause" : "Play"; }
+playBtn.addEventListener("click", () => { sim.running = !sim.running; if (!sim.running) sim.goTo = null; syncPlay(); });
+const warpEl = document.getElementById("warp"), warpLabel = document.getElementById("warpLabel");
+function syncWarp() {
+  const f = warpEl.value / 1000;
+  sim.warp = Math.round(10 ** (f * 5)); // ×1 to ×100,000
+  const per = sim.warp >= 3600 ? `${nf1.format(sim.warp / 3600)} h / s` : sim.warp >= 60 ? `${nf1.format(sim.warp / 60)} min / s` : `${sim.warp} s / s`;
+  warpLabel.textContent = `×${nf0.format(sim.warp)} · ${per}`;
+}
+warpEl.addEventListener("input", syncWarp);
+document.getElementById("undo").addEventListener("click", () => {
+  const h = sim.history.pop(); if (!h) return;
+  sim.orbit = h.orbit; sim.t = h.t; sim.ended = null; sim.node = h.node; sim.goTo = null;
+  setLine(curLine, sim.orbit); updatePlan();
+  document.getElementById("undo").disabled = sim.history.length === 0;
+  flash("Burn undone. It is planned again, so you can adjust it.");
+});
+const presetSel = document.getElementById("preset");
+for (const p of PRESETS) { const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; presetSel.appendChild(o); }
+presetSel.addEventListener("change", () => { start(PRESETS.find(p => p.id === presetSel.value)); fitView(); });
+document.getElementById("reset").addEventListener("click", () => start(sim.preset));
+
+const viewBtns = { view3d: "3d", viewTop: "top", viewPlane: "plane" };
+let viewAnim = null;
+function setView(kind) {
+  for (const id in viewBtns) document.getElementById(id).setAttribute("aria-pressed", String(viewBtns[id] === kind));
+  const d = camera.position.length();
+  let dir;
+  if (kind === "top") dir = new THREE.Vector3(0.0001, 1, 0.0001);
+  else if (kind === "plane") dir = dirV3(sim.orbit.W).add(new THREE.Vector3(0.0001, 0, 0.0001));
+  else dir = new THREE.Vector3(0.62, 0.42, 0.66);
+  viewAnim = { from: camera.position.clone(), to: dir.normalize().multiplyScalar(d), t: 0 };
+}
+for (const id in viewBtns) document.getElementById(id).addEventListener("click", () => setView(viewBtns[id]));
+function fitView() {
+  const reach = o => {
+    const r = o.closed ? o.ra : Math.max(...o.samples.map(s => len(s.p)));
+    return o.e >= 1 || o.escape ? Math.min(r, Math.max(o.rp * 6, 60000)) : r;
+  };
+  const rmax = Math.max(reach(sim.orbit), sim.plan ? reach(sim.plan) : 0);
+  // leave room for the plates at the sides: fit the orbit within the middle of the narrower dimension
+  const d = clamp(rmax * S * 3.6 / Math.min(1, camera.aspect), 34, 3000);
+  viewAnim = { from: camera.position.clone(), to: camera.position.clone().normalize().multiplyScalar(d), t: 0 };
+}
+document.getElementById("fit").addEventListener("click", fitView);
+const panelBtn = document.getElementById("togglePanel");
+panelBtn.addEventListener("click", () => {
+  const show = document.getElementById("elements").hidden;
+  document.getElementById("elements").hidden = !show;
+  panelBtn.setAttribute("aria-pressed", String(show));
+});
+window.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.key === " ") { e.preventDefault(); playBtn.click(); }
+  if (e.key === "Delete" || e.key === "Backspace") deleteNode();
+});
+
+function start(preset) {
+  sim.preset = preset;
+  presetSel.value = preset.id;
+  const st = stateFromElements(preset.el);
+  sim.t = 0; sim.ended = null; sim.endPos = null; sim.node = null; sim.goTo = null; sim.history = [];
+  sim.orbit = makeOrbit(st.r, st.v, 0);
+  document.getElementById("undo").disabled = true;
+  document.getElementById("presetNote").textContent = preset.note;
+  setLine(curLine, sim.orbit);
+  updatePlan();
+  flash("");
+}
+
+// ---------- Time stepping ----------
+function advance(dt) {
+  let target = sim.t + dt;
+  for (let guard = 0; guard < 10; guard++) {
+    const evs = [];
+    if (sim.node) evs.push({ t: sim.node.t, type: "node" });
+    if (sim.orbit.end) evs.push({ t: sim.orbit.end.t, type: sim.orbit.end.type });
+    evs.sort((a, b) => a.t - b.t);
+    const ev = evs[0];
+    if (!ev || ev.t > target) break;
+    sim.t = Math.max(sim.t, ev.t);
+    if (ev.type === "node") {
+      if (len(sim.node.dv) > 1e-7) executeBurn();
+      else { flash("The craft passed the planned burn, but it had no Δv set."); deleteNode(); }
+      continue;
+    }
+    sim.ended = ev.type;
+    sim.endPos = stateAtNu(sim.orbit, sim.orbit.end.nu).r;
+    sim.node = null; sim.goTo = null; updatePlan();
+    flash(ev.type === "impact" ? "Impact! The path met the ground. Undo the last burn, reset, or pick a new start." : "The craft has left Earth's sphere of influence, where the Sun's gravity takes over. Undo, reset, or pick a new start.", 0);
+    return;
+  }
+  sim.t = target;
+}
+
+// ---------- Layout and render loop ----------
+const controlsEl = document.getElementById("controls");
+const titleEl = document.getElementById("title"), manEl = document.getElementById("maneuver");
+function resize() {
+  W = Math.max(1, window.innerWidth); H = Math.max(1, window.innerHeight); // a hidden frame can report 0 x 0
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H; camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+
+const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+let last = performance.now();
+function frame(now) {
+  const realDt = clamp((now - last) / 1000, 0, 0.1); last = now;
+  if (sim.running && !sim.ended && !drag) {
+    if (sim.goTo !== null && sim.node) {
+      const remaining = sim.goTo - sim.t;
+      const step = Math.max(realDt * sim.warp, remaining * (1 - Math.exp(-realDt * 2.5)), 2);
+      advance(Math.min(step, remaining + 1e-6));
+    } else advance(realDt * sim.warp);
+  }
+  // keep the maneuver plate just under the title plate
+  const manTop = titleEl.offsetTop + titleEl.offsetHeight + 10;
+  manEl.style.top = manTop + "px";
+  manEl.style.maxHeight = Math.max(120, controlsEl.offsetTop - manTop - 12) + "px";
+
+  if (viewAnim) {
+    viewAnim.t = Math.min(1, viewAnim.t + realDt * 1.6);
+    const k = 1 - (1 - viewAnim.t) ** 3;
+    const d = THREE.MathUtils.lerp(viewAnim.from.length(), viewAnim.to.length(), k);
+    camera.position.copy(viewAnim.from).normalize().lerp(tmp.copy(viewAnim.to).normalize(), k).normalize().multiplyScalar(d);
+    if (viewAnim.t >= 1) viewAnim = null;
+  }
+  controls.update();
+
+  const o = sim.orbit;
+  earth.rotation.y = (sim.t / SIDEREAL) * TAU;
+
+  // Craft
+  const cur = sim.ended ? { r: sim.endPos, v: [0, 0, 0] } : stateAtNu(o, nuAt(o, sim.t));
+  if (sim.ended === "escape") cur.v = stateAtNu(o, o.end.nu).v;
+  toV3(cur.r, craft.position);
+  place(L.craft, craft.position, 9, -16);
+  L.craft.textContent = sim.ended === "impact" ? "Crashed" : "Craft";
+
+  // Apsis and node labels for an orbit
+  function apsides(orb, kAp, kPe, labAp, labPe, plan) {
+    const round = orb.e < 1e-3; // a circle has no meaningful high or low point
+    const showAp = !round && orb.e < 1 && !orb.escape && orb.onArc(Math.PI);
+    const showPe = !round && orb.onArc(0) && !orb.impact;
+    const pre = plan ? "" : "";
+    if (showAp) {
+      toV3(stateAtNu(orb, Math.PI).r, tmp);
+      place(markerDots[kAp], tmp); place(labAp, tmp, 8, 2);
+      labAp.textContent = `${pre}Ap ${fmtKm(orb.ra - RE)}`;
+    } else hide(markerDots[kAp], labAp);
+    if (showPe) {
+      toV3(stateAtNu(orb, 0).r, tmp);
+      place(markerDots[kPe], tmp); place(labPe, tmp, 8, 2);
+      labPe.textContent = `${pre}Pe ${fmtKm(orb.rp - RE)}`;
+    } else hide(markerDots[kPe], labPe);
+  }
+  apsides(o, "ap", "pe", L.ap, L.pe, false);
+  // ascending / descending nodes and the line between them
+  if (!o.equatorial && o.inc > 0.3 * DEG && o.onArc(o.nuAN) && (o.e < 1 || Math.abs(Math.atan2(Math.sin(o.nuAN), Math.cos(o.nuAN))) < o.nuInf)) {
+    toV3(stateAtNu(o, o.nuAN).r, tmp); place(markerDots.an, tmp); place(L.an, tmp, 7, -15);
+  } else hide(markerDots.an, L.an);
+  if (!o.equatorial && o.inc > 0.3 * DEG && o.onArc(o.nuDN) && (o.e < 1 || Math.abs(Math.atan2(Math.sin(o.nuDN), Math.cos(o.nuDN))) < o.nuInf)) {
+    toV3(stateAtNu(o, o.nuDN).r, tmp); place(markerDots.dn, tmp); place(L.dn, tmp, 7, -15);
+  } else hide(markerDots.dn, L.dn);
+  if (!o.equatorial && o.inc > 0.3 * DEG && o.e < 1) {
+    const arr = nodesLine.geometry.attributes.position.array;
+    toV3(stateAtNu(o, o.nuAN).r, tmp); toV3(stateAtNu(o, o.nuDN).r, tmp2);
+    arr.set([tmp.x, tmp.y, tmp.z, tmp2.x, tmp2.y, tmp2.z]);
+    nodesLine.geometry.attributes.position.needsUpdate = true;
+    nodesLine.computeLineDistances();
+    nodesLine.visible = true;
+  } else nodesLine.visible = false;
+  // end of path
+  if (o.end && !sim.ended) {
+    toV3(stateAtNu(o, o.end.nu).r, tmp);
+    place(L.end, tmp, 8, 2);
+    L.end.textContent = o.end.type === "impact" ? "✕ Impact" : "→ Leaves Earth's influence";
+  } else hide(L.end);
+
+  // Planned orbit
+  if (sim.plan) {
+    apsides(sim.plan, "pap", "ppe", L.pap, L.ppe, true);
+    if (sim.plan.end) { toV3(stateAtNu(sim.plan, sim.plan.end.nu).r, tmp); place(L.pend, tmp, 8, 2); L.pend.textContent = sim.plan.end.type === "impact" ? "✕ Impact" : "→ Leaves Earth's influence"; }
+    else hide(L.pend);
+  } else hide(markerDots.pap, markerDots.ppe, L.pap, L.ppe, L.pend);
+  hide(L.pan, L.pdn);
+
+  // Maneuver node and its handles
+  if (sim.node) {
+    const { st, f } = nodeState();
+    const np = toV3(st.r, new THREE.Vector3());
+    place(L.nodeDot, np, 0, 0, true);
+    const k = camera.position.distanceTo(np) * 0.075;
+    const arr = handleLines.geometry.attributes.position.array;
+    HANDLES.forEach((h, i) => {
+      const d = dirV3(mul(f[h.axis], h.sign), tmp2);
+      tmp.copy(np).addScaledVector(d, k);
+      h.screen = place(h.el, tmp, 0, 0, true);
+      arr.set([np.x, np.y, np.z, tmp.x, tmp.y, tmp.z], i * 6);
+    });
+    handleLines.geometry.attributes.position.needsUpdate = true;
+    handleLines.visible = true;
+    document.getElementById("dvWhen").textContent = fmtDur(sim.node.t - sim.t);
+    document.getElementById("nodeWhen").textContent = "Burn in " + fmtDur(sim.node.t - sim.t);
+  } else {
+    hide(L.nodeDot, ...HANDLES.map(h => h.el));
+    handleLines.visible = false;
+  }
+
+  // Hover ghost
+  if (hover && !drag) {
+    toV3(hover.p, tmp);
+    place(L.ghostDot, tmp);
+    const t = timeToNu(o, hover.nu, sim.t + 1);
+    const ok = t !== null && (!o.end || t <= o.end.t);
+    place(L.ghost, tmp, 10, 6);
+    L.ghost.textContent = ok ? `${sim.node ? "Move burn" : "Plan a burn"} here · in ${fmtDur(t - sim.t)}` : "Already passed";
+  } else hide(L.ghostDot, L.ghost);
+
+  // Reference labels
+  place(L.ref, toV3([52000, 0, 0], tmp), 4, -14);
+  place(L.north, toV3([0, 0, RE * 1.75], tmp), -4, -16);
+  place(L.geo, toV3([0, -42164, 0], tmp), 4, -14);
+
+  document.getElementById("clock").textContent = fmtClock(sim.t);
+  statusEl.innerHTML = sim.ended === "impact" ? "<b>Crashed</b> into Earth." : sim.ended === "escape" ? "<b>Escaped</b> from Earth." : describe(o);
+  updatePanel(cur);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+syncWarp();
+start(PRESETS[0]);
+// Handy from the browser console, and for automated checks
+window.orbitSim = { sim, camera, advance, placeAt, setNode, updatePlan, makeOrbit, stateAtNu, start, PRESETS };
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
