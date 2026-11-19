@@ -106,7 +106,7 @@
 /* Same instrument styling as the Orrery: full-bleed sky, brass-edged plates, control rail along the bottom */
 :root {
   --sky: #06080f;
-  --plate: rgba(14, 18, 30, 0.84);
+  --plate: rgba(14, 18, 30, 0.92);
   --line: rgba(201, 164, 92, 0.28);
   --fg: #e8e2d2;
   --muted: #9a968a;
@@ -184,7 +184,6 @@ body {
 
 .plate {
   background: var(--plate); border: 1px solid var(--line); border-radius: 6px;
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 h2 {
   margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 15px;
@@ -1726,7 +1725,15 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
 
   // trajectory: the current orbit up to the first node, then the orbit after each node in turn
   let traj = [];
+  // ---------- redraw on demand ----------
+  // The scene is only drawn while time runs, the camera moves, or something changed; a paused, untouched page draws nothing.
+  let dirty = true;
+  const wake = () => { dirty = true; };
+  ["pointermove", "pointerdown", "pointerup", "wheel", "keydown", "keyup", "input", "change", "click", "resize"].forEach(ev => window.addEventListener(ev, wake, { capture: true, passive: true }));
+  document.addEventListener("visibilitychange", wake);
+
   function buildTrajectory() {
+    wake();
     sim.nodes.sort((a, b) => a.t - b.t);
     traj = [];
     let orb = sim.orbit, t0 = sim.t;
@@ -1769,7 +1776,9 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     document.getElementById("webglError").hidden = false;
     return;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // 1.5× is sharp on high-DPI screens at a little over half the pixels of 2×
+  const PIXEL_RATIO = Math.min(window.devicePixelRatio || 1, 1.5);
+  renderer.setPixelRatio(PIXEL_RATIO);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#06080f");
   const camera = new THREE.PerspectiveCamera(45, 1, 0.02, 60000);
@@ -1820,7 +1829,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     g.setAttribute("size", new THREE.BufferAttribute(size, 1));
     const stars = new THREE.Points(g, new THREE.ShaderMaterial({
-      uniforms: { scale: { value: Math.min(window.devicePixelRatio || 1, 2) } },
+      uniforms: { scale: { value: PIXEL_RATIO } },
       vertexShader: `attribute float size; varying vec3 vColor; uniform float scale;
         void main() { vColor = color; gl_PointSize = size * scale; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `varying vec3 vColor;
@@ -1834,7 +1843,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   // Earth, its clouds and a thin blue limb
   const earth = new THREE.Group();
   scene.add(earth);
-  const texLoad = src => { const t = new THREE.TextureLoader().load(src); t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); return t; };
+  const texLoad = src => { const t = new THREE.TextureLoader().load(src, wake); t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); return t; };
   const earthR = RE / KM;
   const earthBody = new THREE.Mesh(new THREE.SphereGeometry(earthR, 96, 48), new THREE.MeshLambertMaterial({ map: texLoad(TEXTURES.Earth) }));
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(earthR * 1.006, 96, 48),
@@ -2397,7 +2406,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
 
   // ---------- controls bar ----------
   const playBtn = $("play"), warpIn = $("warp"), warpLabel = $("warpLabel");
-  function setPlaying(p) { sim.playing = p; playBtn.textContent = p ? "Pause" : "Play"; }
+  function setPlaying(p) { wake(); sim.playing = p; playBtn.textContent = p ? "Pause" : "Play"; }
   playBtn.addEventListener("click", () => { if (!sim.ended) setPlaying(!sim.playing); });
   function setWarp(i) { sim.warpIdx = clamp(i, 0, WARPS.length - 1); warpIn.value = sim.warpIdx; }
   warpIn.addEventListener("input", () => setWarp(+warpIn.value));
@@ -2556,13 +2565,24 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   function sampleLeg(leg, k, isNow) {
     const o = leg.orb, L = getLine(k);
     const pos = L.g.attributes.position.array;
-    const nus = new Float32Array(ORBIT_N + 1);
     let full = o.e < 1 && !leg.end, nuA, nuB;
     if (!full) {
       nuA = wrapPi(nuFromMean(o, meanAt(o, leg.t0)));
       nuB = leg.end ? leg.endNu : (o.e < 1 ? nuA + TAU : o.nuAsym * 0.999);
       if (o.e < 1 && leg.end) { while (nuB < nuA) nuB += TAU; }
     }
+    const planned = k > 0;
+    // the same path as last frame (a closed orbit as the craft moves round it, or an unchanged plan): reuse its points
+    const key = [o.e, o.p, ...o.P, ...o.Q, planned, full ? "full" : `${nuA.toFixed(4)} ${nuB.toFixed(4)}`].join();
+    if (L.key === key) {
+      leg.samples = L.samples; leg.full = full; leg.nuA = nuA; leg.nuB = nuB;
+      if (planned) L.dashed.material.opacity = k === traj.length - 1 ? 0.95 : 0.45;
+      else L.solid.material.opacity = traj.length > 1 ? 0.65 : 1;
+      L.solid.visible = !planned; L.dashed.visible = planned;
+      return;
+    }
+    L.key = key;
+    const nus = new Float32Array(ORBIT_N + 1);
     const tmp = new THREE.Vector3();
     for (let j = 0; j <= ORBIT_N; j++) {
       let nu;
@@ -2576,9 +2596,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     }
     L.g.attributes.position.needsUpdate = true;
     L.g.setDrawRange(0, ORBIT_N + 1);
-    leg.samples = { pos, nu: nus };
+    leg.samples = L.samples = { pos, nu: nus };
     leg.full = full; leg.nuA = nuA; leg.nuB = nuB;
-    const planned = k > 0;
     L.solid.visible = !planned; L.dashed.visible = planned;
     if (planned) {
       L.dashed.computeLineDistances();
@@ -2675,6 +2694,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   }
   window.addEventListener("resize", resize);
+  controls.addEventListener("change", wake);
   // keep the side panels clear of the control bar, however many rows it wraps to
   const barEl = $("controls");
   const fitBar = () => document.documentElement.style.setProperty("--bar-space", `${window.innerHeight - barEl.getBoundingClientRect().top + 10}px`);
@@ -2683,7 +2703,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   fitBar();
   resize();
 
-  let last = performance.now(), panelTick = 0;
+  let last = performance.now(), panelTick = 0, renders = 0;
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     step(dt);
@@ -2700,10 +2720,15 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       camera.position.copy(f).normalize().lerp(to.clone().normalize(), k).setLength(d).add(controls.target);
       if (viewAnim.t >= 1) viewAnim = null;
     }
-    controls.update();
-    const cur = draw();
-    if (now - panelTick > 100) { panelTick = now; updateElements(cur); if (sim.nodes.length) refreshTabsLight(); }
-    renderer.render(scene, camera);
+    const camMoved = controls.update();             // true while the view turns, zooms or glides to a stop
+    const running = sim.playing && !sim.ended;
+    if (running || camMoved || viewAnim || dirty) {
+      const changedNow = dirty;
+      dirty = false;
+      const cur = draw();
+      if (changedNow || now - panelTick > 100) { panelTick = now; updateElements(cur); if (sim.nodes.length) refreshTabsLight(); }
+      renderer.render(scene, camera); renders++;
+    }
     requestAnimationFrame(frame);
   }
   function refreshTabsLight() {
@@ -2712,7 +2737,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   }
 
   // debug/test hook
-  window.__orbit = { sim, get traj() { return traj; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, RE, MU };
+  window.__orbit = { sim, get traj() { return traj; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
 
   loadScenario("leo");
   let seen = null;
