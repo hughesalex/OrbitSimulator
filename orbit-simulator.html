@@ -2652,6 +2652,42 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     let x = nu; while (x < leg.nuA) x += TAU; while (x > leg.nuA + TAU) x -= TAU;
     return x <= leg.nuB;
   }
+  // Spread the six burn handles so none sits on another or on the node. A direction pointing almost straight at
+  // (or away from) the camera has no useful on-screen direction, so its pair is turned into the widest gap between
+  // the others, opposite each other; any handles still too close are then pushed apart.
+  const H_MIN_R = 46, H_GAP = 36;
+  function layoutHandles(pts) {
+    const ang = p => Math.atan2(p.y, p.x), gap = (a, b) => Math.abs(wrapPi(a - b));
+    const pairs = ["pro", "nrm", "rad"].map(k => pts.filter(p => p.h.k === k));
+    const flat = pairs.filter(([a]) => Math.hypot(a.x, a.y) < 18), firm = pts.filter(p => !flat.some(f => f.includes(p)));
+    let taken = firm.map(ang);
+    flat.forEach(pair => {
+      let best = 0, bestScore = -1;
+      for (let i = 0; i < 72; i++) {
+        const t = i / 72 * TAU;
+        const score = taken.length ? Math.min(...taken.map(a => Math.min(gap(t, a), gap(t + Math.PI, a)))) : 1;
+        if (score > bestScore) { bestScore = score; best = t; }
+      }
+      pair.forEach(p => { const t = best + (p.h.s > 0 ? 0 : Math.PI); p.x = Math.cos(t); p.y = Math.sin(t); });
+      taken = taken.concat([best, best + Math.PI]);
+    });
+    const keepOut = p => { const r = Math.hypot(p.x, p.y) || 1; if (r < H_MIN_R) { p.x *= H_MIN_R / r; p.y *= H_MIN_R / r; } };
+    pts.forEach(keepOut);
+    for (let it = 0; it < 12; it++) {
+      let moved = false;
+      for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+        const a = pts[i], b = pts[j];
+        let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+        if (d >= H_GAP) continue;
+        if (d < 1e-3) { dx = -a.y; dy = a.x; d = Math.hypot(dx, dy) || 1; }   // exactly on top: split sideways
+        const push = (H_GAP - d) / 2 / d;
+        a.x -= dx * push; a.y -= dy * push; b.x += dx * push; b.y += dy * push;
+        moved = true;
+      }
+      pts.forEach(keepOut);
+      if (!moved) break;
+    }
+  }
   const tmpS = {};
   function draw() {
     camPos.copy(camera.position);
@@ -2700,14 +2736,18 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     if (showH) {
       const base = toScene(n.pre.r), dist = base.distanceTo(camPos);
       const wpp = 2 * dist * Math.tan(camera.fov * DEG / 2) / H;    // scene units per pixel at the node
-      HANDLES.forEach(h => {
-        const d = dirScene(n.frame[h.k]).multiplyScalar(h.s * 64 * wpp);
-        const s = project(base.clone().add(d), tmpS);
-        if (!s) { h.el.hidden = true; h.stem.style.display = "none"; return; }
-        h.sx = s.x - n.screen.x; h.sy = s.y - n.screen.y;
-        h.el.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+      // where each handle would go: 80 px along its burn direction, as seen from the camera
+      const pts = HANDLES.map(h => {
+        const s = project(base.clone().add(dirScene(n.frame[h.k]).multiplyScalar(h.s * 80 * wpp)), tmpS);
+        return s ? { h, x: s.x - n.screen.x, y: s.y - n.screen.y } : { h, x: 0, y: 0 };
+      });
+      layoutHandles(pts);
+      pts.forEach(({ h, x, y }) => {
+        const sx = n.screen.x + x, sy = n.screen.y + y;
+        h.sx = x; h.sy = y;                        // dragging away from the node, along this line, adds Δv
+        h.el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
         h.stem.setAttribute("x1", n.screen.x); h.stem.setAttribute("y1", n.screen.y);
-        h.stem.setAttribute("x2", s.x); h.stem.setAttribute("y2", s.y);
+        h.stem.setAttribute("x2", sx); h.stem.setAttribute("y2", sy);
       });
     }
     // hover ghost
