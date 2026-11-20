@@ -2148,6 +2148,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     const s = stateAt(sim.orbit, sim.t), f = burnFrame(s);
     burn(add(add(mul(f.pro, n.pro / 1000), mul(f.nrm, n.nrm / 1000)), mul(f.rad, n.rad / 1000)));
     deleteNode(n);
+    if (!sim.ended) setPlaying(true);   // carry on flying after the burn
     toast(`Burn complete: ${fmtDv(nodeDv(n))}. Undo burn puts it back on the plan.`);
   }
 
