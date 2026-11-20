@@ -295,7 +295,7 @@ select.field option { background: #0e121e; }
         <button class="btn" type="button" id="zeroNode">Zero Δv</button>
         <button class="btn" type="button" id="delNode" title="Delete this node (Delete key)">Delete</button>
       </div>
-      <p class="hint" style="margin-top:8px">Drag the coloured handles on the node to change the burn (hold <b>Shift</b> for fine control), or drag the node itself along the orbit.</p>
+      <p class="hint" style="margin-top:8px">Drag the coloured handles on the node to change the burn (hold <b>Shift</b> for big changes, 20× faster), or drag the node itself along the orbit.</p>
     </div>
   </div>
   <div class="sect">
@@ -838,7 +838,7 @@ select.field option { background: #0e121e; }
     h.el = document.createElement("div");
     h.el.className = "handle " + h.k;
     h.el.innerHTML = ICON[h.icon];
-    h.el.title = `${h.name}: drag outward to add Δv in this direction, inward to take it away (Shift for fine)`;
+    h.el.title = `${h.name}: drag outward to add Δv in this direction, inward to take it away (hold Shift for 20× faster)`;
     h.el.hidden = true;
     labelLayer.appendChild(h.el);
     h.stem = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -1275,7 +1275,7 @@ select.field option { background: #0e121e; }
       let sx = h.sx, sy = h.sy, L = Math.hypot(sx, sy);
       if (L < 6) { sx = 0; sy = -1; L = 1; }            // pointing at the camera: drag upward to add
       const along = (dx * sx + dy * sy) / L;
-      const rate = ev.shiftKey ? 0.1 : 1.0;             // m/s per pixel
+      const rate = ev.shiftKey ? 20 : 1.0;              // m/s per pixel
       node[h.k] = Math.round((node[h.k] + h.s * along * rate) * 10) / 10;
       changed();
     };
