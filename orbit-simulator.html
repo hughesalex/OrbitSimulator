@@ -210,11 +210,15 @@ h2 {
 
 #man {
   position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 162px);
-  width: 300px; box-sizing: border-box; max-height: calc(100% - 162px - var(--bar-space, 120px)); overflow-y: auto; padding: 10px 0 8px;
+  width: 300px; box-sizing: border-box; max-height: calc(100% - 162px - var(--bar-space, 120px)); padding: 10px 0 8px;
 }
+/* the heading stays put; everything under it scrolls */
+#man, #elements { display: flex; flex-direction: column; overflow: hidden; }
+#man > header, #elements > header { flex: none; }
+.pbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 #elements {
   position: fixed; top: calc(env(safe-area-inset-top, 0px) + 16px); right: max(16px, env(safe-area-inset-right, 0px));
-  width: 320px; box-sizing: border-box; max-height: calc(100% - 16px - var(--bar-space, 120px)); overflow-y: auto; padding: 10px 0 6px;
+  width: 320px; box-sizing: border-box; max-height: calc(100% - 16px - var(--bar-space, 120px)); padding: 10px 0 6px;
 }
 .sect { padding: 6px 14px 4px; }
 .sect + .sect { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px; }
@@ -322,6 +326,10 @@ select.field option { background: #0e121e; }
     top: auto; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto;
     bottom: var(--bar-space, 140px); max-height: min(50%, calc(100% - var(--bar-space, 140px) - 110px)); z-index: 3;
   }
+  /* drag a panel's heading up or down to resize it */
+  #man, #elements { padding-top: 4px; }
+  .panel > header { position: relative; padding-top: 14px; cursor: ns-resize; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .panel > header::before { content: ""; position: absolute; left: 50%; top: 5px; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--muted); opacity: 0.5; }
   #controls { padding: 8px 10px; gap: 8px; }
   #toast { top: calc(env(safe-area-inset-top, 0px) + 130px); }
 }
@@ -2451,7 +2459,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   for (const id in VIEWS) $(id).addEventListener("click", () => setView(VIEWS[id]));
   // turning the view by hand leaves the fixed angles (zooming doesn't)
   const dragDir = new THREE.Vector3();
-  controls.addEventListener("start", () => { viewAnim = null; dragDir.copy(camera.position).sub(controls.target).normalize(); });
+  controls.addEventListener("start", () => { viewAnim = null; aim.goal = 0; dragDir.copy(camera.position).sub(controls.target).normalize(); });
   controls.addEventListener("end", () => { if (camera.position.clone().sub(controls.target).normalize().dot(dragDir) < 0.99999) markView(null); });
   function fitView() {
     if (focusCraft) setFocus(false);
@@ -2463,7 +2471,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       if (o.e >= 1 || o.ra > SOI || leg.end === "escape") r = Math.min(r, Math.max(o.rp * 6, 60000));   // don't zoom out to the edge of the sphere of influence
       rmax = Math.max(rmax, r);
     });
-    const d = clamp(rmax / KM * 4.4 / Math.min(1, camera.aspect), 28, 3000);
+    const d = clamp(rmax / KM * 4.4 / framing(), 28, 3000);
     animateTo(camera.position.clone().sub(controls.target).setLength(d));
   }
   $("fit").addEventListener("click", fitView);
@@ -2491,7 +2499,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     buildTrajectory(); refreshPanel();
     focusCraft = false; $("focusEarth").setAttribute("aria-pressed", "true"); $("focusCraft").setAttribute("aria-pressed", "false");
     controls.target.set(0, 0, 0); viewAnim = null; markView("3d");
-    camera.position.copy(viewDir("3d").multiplyScalar(sc.cam * Math.max(1, 0.8 / camera.aspect)));
+    const f = freeRect();   // stand back further when the panels leave less room
+    camera.position.copy(viewDir("3d").multiplyScalar(sc.cam * Math.max(1, 0.8 / (f.w / f.h)) * Math.min(1.8, H / f.h)));
     toast(sc.note, 7000);
   }
 
@@ -2690,10 +2699,74 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
     renderer.setSize(W, H, false);
-    camera.aspect = W / H; camera.updateProjectionMatrix();
+    camera.aspect = W / H;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    // on a narrow screen the two panels sit in the same place, so only one is open at a time
+    if (narrow() && !$("man").hidden && !$("elements").hidden) { $("elements").hidden = true; $("elBtn").setAttribute("aria-pressed", "false"); }
+    if (!narrow()) ["man", "elements"].forEach(id => { $(id).style.maxHeight = ""; });   // a size dragged on a narrow screen doesn't apply to the side panels
+    aimView(true);
   }
   window.addEventListener("resize", resize);
+
+  // ---------- keep the view centred in the part of the screen the panels leave uncovered ----------
+  // The camera still looks at Earth (or the craft); the picture is shifted so that point lands in the middle of the open area.
+  function freeRect() {
+    let L = 0, R = W, T = 0, B = H;
+    for (const id of ["man", "elements", "controls"]) {
+      const el = $(id);
+      if (el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      if (id === "controls" || r.width >= W * 0.6) B = Math.min(B, r.top);      // spans the screen: covers the bottom
+      else if (r.left + r.width / 2 < W / 2) L = Math.max(L, r.right);
+      else R = Math.min(R, r.left);
+    }
+    if (R - L < W * 0.3) { L = 0; R = W; }       // never squeeze the picture into a sliver
+    if (B - T < H * 0.25) { T = 0; B = H; }
+    return { L, R, T, B, w: R - L, h: B - T };
+  }
+  const aim = { x: 0, y: 0, tx: 0, ty: 0, room: 0 };   // shift of the picture's centre in pixels (now and target), and the room it had
+  function aimView(jump) {
+    const f = freeRect(), room = f.h / H * Math.min(1, f.w / f.h);
+    aim.tx = (f.L + f.R) / 2 - W / 2; aim.ty = (f.T + f.B) / 2 - H / 2;
+    if (jump) { aim.x = aim.tx; aim.y = aim.ty; }
+    // a panel opened or closed: zoom so the scene keeps its size relative to the open area
+    else if (aim.room && Math.abs(room / aim.room - 1) > 0.02) {
+      const off = camera.position.clone().sub(controls.target);
+      aim.goal = clamp((aim.goal || off.length()) * aim.room / room, controls.minDistance, controls.maxDistance);   // from the last goal, so quick changes don't compound
+      animateTo(off.setLength(aim.goal));
+    }
+    aim.room = room;
+    applyAim(); wake();
+  }
+  function applyAim() {
+    camera.setViewOffset(W, H, -aim.x, -aim.y, W, H);   // updates the projection
+  }
+  // how much smaller the open area is than the screen, for framing the orbit in it
+  function framing() { const f = freeRect(); return f.h / H * Math.min(1, f.w / f.h); }
+  // on a narrow screen, drag a panel's heading down to shrink it (and up to grow it); double-click the heading to reset
+  document.querySelectorAll("#man > header, #elements > header").forEach(hd => {
+    const panel = hd.parentElement;
+    const body = document.createElement("div"); body.className = "pbody";   // the part that scrolls
+    while (hd.nextSibling) body.appendChild(hd.nextSibling);
+    panel.appendChild(body);
+    hd.addEventListener("pointerdown", e => {
+      if (!narrow() || e.button !== 0) return;
+      e.preventDefault(); hd.setPointerCapture(e.pointerId);
+      const box = panel.getBoundingClientRect(), grab = e.clientY - box.top, saved = panel.style.maxHeight;
+      panel.style.maxHeight = "";
+      const most = parseFloat(getComputedStyle(panel).maxHeight) || box.height;
+      panel.style.maxHeight = saved;
+      const move = ev => {
+        const h = clamp(box.bottom - (ev.clientY - grab), hd.offsetHeight + 1, Math.max(most, box.height));
+        panel.style.maxHeight = `${Math.round(h)}px`;
+      };
+      const up = () => { hd.removeEventListener("pointermove", move); hd.removeEventListener("pointerup", up); hd.removeEventListener("pointercancel", up); };
+      hd.addEventListener("pointermove", move); hd.addEventListener("pointerup", up); hd.addEventListener("pointercancel", up);
+    });
+    hd.addEventListener("dblclick", () => { if (narrow()) panel.style.maxHeight = ""; });
+  });
+  if (window.ResizeObserver) { const ro = new ResizeObserver(() => aimView(false)); ["man", "elements", "controls"].forEach(id => ro.observe($(id))); }
   controls.addEventListener("change", wake);
   // keep the side panels clear of the control bar, however many rows it wraps to
   const barEl = $("controls");
@@ -2718,11 +2791,17 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       const k = 1 - (1 - viewAnim.t) ** 3, f = viewAnim.from, to = viewAnim.to;
       const d = THREE.MathUtils.lerp(f.length(), to.length(), k);
       camera.position.copy(f).normalize().lerp(to.clone().normalize(), k).setLength(d).add(controls.target);
-      if (viewAnim.t >= 1) viewAnim = null;
+      if (viewAnim.t >= 1) { viewAnim = null; aim.goal = 0; }
     }
     const camMoved = controls.update();             // true while the view turns, zooms or glides to a stop
     const running = sim.playing && !sim.ended;
-    if (running || camMoved || viewAnim || dirty) {
+    let aiming = false;
+    if (Math.abs(aim.tx - aim.x) > 0.5 || Math.abs(aim.ty - aim.y) > 0.5) {   // glide to a new centre when a panel opens or closes
+      const k = 1 - Math.exp(-dt * 10);
+      aim.x += (aim.tx - aim.x) * k; aim.y += (aim.ty - aim.y) * k;
+      applyAim(); aiming = true;
+    }
+    if (running || camMoved || viewAnim || aiming || dirty) {
       const changedNow = dirty;
       dirty = false;
       const cur = draw();
