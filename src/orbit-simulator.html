@@ -1205,32 +1205,45 @@ select.field option { background: #0e121e; }
     const h = nearestOnLegs(x, y, legs, maxPx);
     return h && h.t <= h.leg.t1 && h.t < h.leg.endT && h.t > sim.t + 1 ? h : null;
   }
-  // a tap or click places a node. Touch has no hover, so the orbit is looked for where the finger lifts,
-  // with a wider reach for a fingertip; a pinch or drag with two fingers is never a tap.
-  const downs = new Map();
-  let multi = false;
-  canvas.addEventListener("pointerdown", e => {
-    downs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (downs.size > 1) multi = true;
-    mouse.down = { x: e.clientX, y: e.clientY };
-  });
+  // A click places a node where the mouse was hovering over the orbit.
+  function tapAt(x, y, maxPx) {
+    const h = hover || pickOrbit(x, y, maxPx);
+    if (h) { addNode(h.t); hover = null; }
+    else if (sim.sel) { sim.sel = null; refreshPanel(); }
+  }
+  canvas.addEventListener("pointerdown", e => { if (e.pointerType !== "touch") mouse.down = { x: e.clientX, y: e.clientY }; });
   canvas.addEventListener("pointermove", e => {
     mouse.x = e.clientX; mouse.y = e.clientY;
     if (e.buttons || e.pointerType === "touch") { hover = null; return; }
     hover = pickOrbit(e.clientX, e.clientY, 12);
   });
   canvas.addEventListener("pointerleave", () => { hover = null; });
-  const endPointer = e => { downs.delete(e.pointerId); if (!downs.size) setTimeout(() => { if (!downs.size) multi = false; }, 0); };
-  canvas.addEventListener("pointercancel", e => { endPointer(e); mouse.down = null; });
   canvas.addEventListener("pointerup", e => {
-    const d = downs.get(e.pointerId), wasMulti = multi;
-    endPointer(e); mouse.down = null;
-    const touch = e.pointerType !== "mouse";
-    if (!d || wasMulti || Math.hypot(e.clientX - d.x, e.clientY - d.y) > (touch ? 12 : 5)) return;
-    const h = touch ? pickOrbit(e.clientX, e.clientY, 28) : hover;
-    if (h) { addNode(h.t); hover = null; }
-    else if (sim.sel) { sim.sel = null; refreshPanel(); }
+    if (e.pointerType === "touch") return;          // taps are handled from the touch events below
+    const d = mouse.down; mouse.down = null;
+    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5) return;
+    tapAt(e.clientX, e.clientY, e.pointerType === "pen" ? 20 : 12);
   });
+  // Touch has no hover, so a tap looks for the orbit where the finger lifts, with a wider reach for a fingertip.
+  // These are the same touch events the view's drag and pinch run on; a gesture that ever had two fingers is never a tap.
+  let tap = null;
+  canvas.addEventListener("touchstart", e => {
+    const t = e.changedTouches[0];
+    tap = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, id: t.identifier, moved: false } : null;
+  }, { passive: true });
+  canvas.addEventListener("touchmove", e => {
+    if (!tap) return;
+    if (e.touches.length > 1) { tap = null; return; }
+    const t = e.touches[0];
+    if (Math.hypot(t.clientX - tap.x, t.clientY - tap.y) > 12) tap.moved = true;
+  }, { passive: true });
+  canvas.addEventListener("touchend", e => {
+    const t = [...e.changedTouches].find(c => tap && c.identifier === tap.id);
+    const ok = tap && t && !tap.moved && e.touches.length === 0 && Math.hypot(t.clientX - tap.x, t.clientY - tap.y) <= 12;
+    tap = null;
+    if (ok) { hover = null; tapAt(t.clientX, t.clientY, 28); wake(); }
+  });
+  canvas.addEventListener("touchcancel", () => { tap = null; });
 
   function startNodeDrag(e, node, el) {
     e.preventDefault(); e.stopPropagation();
@@ -1619,8 +1632,8 @@ select.field option { background: #0e121e; }
       if (!narrow() || e.button !== 0) return;
       e.preventDefault(); hd.setPointerCapture(e.pointerId);
       const box = panel.getBoundingClientRect(), grab = e.clientY - box.top, saved = panel.style.maxHeight;
-      panel.style.maxHeight = "";
-      const most = parseFloat(getComputedStyle(panel).maxHeight) || box.height;
+      panel.style.maxHeight = "";                         // its full size, as the stylesheet allows, is as far as it can grow
+      const most = panel.getBoundingClientRect().height;
       panel.style.maxHeight = saved;
       const move = ev => {
         const h = clamp(box.bottom - (ev.clientY - grab), hd.offsetHeight + 1, Math.max(most, box.height));
