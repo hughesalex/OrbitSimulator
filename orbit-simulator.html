@@ -354,7 +354,7 @@ select.field option { background: #0e121e; }
 <aside id="man" class="plate panel" aria-label="Manoeuvre planner">
   <header><h2>Manoeuvre</h2><span id="planTotal"></span></header>
   <div class="sect" id="nodeSect">
-    <p class="hint" id="nodeHint">Click anywhere on your orbit to place a manoeuvre node, or add one at:</p>
+    <p class="hint" id="nodeHint">Click or tap anywhere on your orbit to place a manoeuvre node, or add one at:</p>
     <div id="nodeTabs"></div>
     <div class="btns" id="quickAdd">
       <button class="btn small" type="button" data-at="ap" title="Add a node at the next apoapsis">Apoapsis</button>
@@ -2104,8 +2104,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       nodeTabs.appendChild(b);
     });
     $("nodeHint").textContent = sim.nodes.length
-      ? (sim.nodes.length < MAX_NODES ? "Click the orbit (or the dashed plan) to add another node, or add one at:" : "That's the most nodes at once. Execute or delete one first.")
-      : "Click anywhere on your orbit to place a manoeuvre node, or add one at:";
+      ? (sim.nodes.length < MAX_NODES ? "Click or tap the orbit (or the dashed plan) to add another node, or add one at:" : "That's the most nodes at once. Execute or delete one first.")
+      : "Click or tap anywhere on your orbit to place a manoeuvre node, or add one at:";
     editor.hidden = !sim.sel;
     const total = sim.nodes.reduce((s, n) => s + nodeDv(n), 0);
     $("planTotal").textContent = sim.nodes.length ? `Δv planned ${fmtDv(total)}` : "";
@@ -2349,21 +2349,37 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     best.pos = toScene(stateAtNu(o, best.nu).r);
     return best;
   }
-  canvas.addEventListener("pointerdown", e => { mouse.down = { x: e.clientX, y: e.clientY }; });
+  // the spot on the current orbit, or on the final planned leg, where a new node could go
+  function pickOrbit(x, y, maxPx) {
+    if (sim.ended || sim.nodes.length >= MAX_NODES) return null;
+    const legs = traj.length > 1 ? [traj[traj.length - 1], ...traj.slice(0, -1)] : traj;
+    const h = nearestOnLegs(x, y, legs, maxPx);
+    return h && h.t <= h.leg.t1 && h.t < h.leg.endT && h.t > sim.t + 1 ? h : null;
+  }
+  // a tap or click places a node. Touch has no hover, so the orbit is looked for where the finger lifts,
+  // with a wider reach for a fingertip; a pinch or drag with two fingers is never a tap.
+  const downs = new Map();
+  let multi = false;
+  canvas.addEventListener("pointerdown", e => {
+    downs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (downs.size > 1) multi = true;
+    mouse.down = { x: e.clientX, y: e.clientY };
+  });
   canvas.addEventListener("pointermove", e => {
     mouse.x = e.clientX; mouse.y = e.clientY;
-    if (e.buttons) { hover = null; return; }
-    if (sim.ended || sim.nodes.length >= MAX_NODES) { hover = null; return; }
-    // the current orbit and the final planned leg can take new nodes
-    const legs = traj.length > 1 ? [traj[traj.length - 1], ...traj.slice(0, -1)] : traj;
-    const h = nearestOnLegs(e.clientX, e.clientY, legs, 12);
-    hover = h && h.t <= h.leg.t1 && h.t < h.leg.endT && h.t > sim.t + 1 ? h : null;
+    if (e.buttons || e.pointerType === "touch") { hover = null; return; }
+    hover = pickOrbit(e.clientX, e.clientY, 12);
   });
   canvas.addEventListener("pointerleave", () => { hover = null; });
+  const endPointer = e => { downs.delete(e.pointerId); if (!downs.size) setTimeout(() => { if (!downs.size) multi = false; }, 0); };
+  canvas.addEventListener("pointercancel", e => { endPointer(e); mouse.down = null; });
   canvas.addEventListener("pointerup", e => {
-    const d = mouse.down; mouse.down = null;
-    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5) return;
-    if (hover) { addNode(hover.t); hover = null; }
+    const d = downs.get(e.pointerId), wasMulti = multi;
+    endPointer(e); mouse.down = null;
+    const touch = e.pointerType !== "mouse";
+    if (!d || wasMulti || Math.hypot(e.clientX - d.x, e.clientY - d.y) > (touch ? 12 : 5)) return;
+    const h = touch ? pickOrbit(e.clientX, e.clientY, 28) : hover;
+    if (h) { addNode(h.t); hover = null; }
     else if (sim.sel) { sim.sel = null; refreshPanel(); }
   });
 
