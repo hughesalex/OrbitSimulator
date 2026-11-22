@@ -142,6 +142,8 @@ body {
 }
 .mark .pip { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; margin-left: -3.5px; }
 .mark.plan { color: var(--plan); }
+/* points the path passes (apsides, encounters): a hollow diamond, so they can't be mistaken for burns, which are round */
+.mark.plan .pip, .mark.ev .pip { width: 6px; height: 6px; margin-left: -3px; border-radius: 0; background: none; border: 1.5px solid currentColor; transform: rotate(45deg); box-sizing: border-box; }
 .mark.dim { opacity: 0.3; }
 .mark.node-mark .pip { width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: none; border: 1.5px solid currentColor; }
 .mark.hl { color: #fff; }
@@ -251,8 +253,60 @@ input.field { width: 84px; text-align: right; font-variant-numeric: tabular-nums
 select.field { font-family: var(--font-body); padding-right: 4px; }
 select.field option { background: #0e121e; }
 
-#nodeTabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-#nodeTabs button[aria-pressed="true"] { background: var(--plan); border-color: var(--plan); color: var(--sky); }
+/* the plan as a timeline: burns (round) and the events between them (diamonds) */
+#itin { list-style: none; margin: 0 0 8px; padding: 0; }
+#itin li { margin: 0; }
+.it {
+  display: grid; grid-template-columns: 14px 1fr auto; column-gap: 8px; align-items: baseline; width: 100%; box-sizing: border-box;
+  padding: 4px 6px; border: 1px solid transparent; border-radius: 4px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.it:hover { background: rgba(201, 164, 92, 0.08); }
+.it .ico { align-self: center; justify-self: center; width: 7px; height: 7px; box-sizing: border-box; }
+.it.burn .ico { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--plan); background: radial-gradient(circle, var(--plan) 30%, transparent 34%); }
+.it.ev .ico { border: 1.5px solid var(--muted); transform: rotate(45deg); }
+.it.ev.warn .ico { border-color: var(--warn); }
+.it .what { font-size: 12px; min-width: 0; }
+.it.burn .what { color: var(--plan); font-weight: 500; }
+.it.ev .what { color: #cfc9ba; }
+.it.ev.warn .what { color: var(--warn); }
+.it .t { font: 11px var(--font-data); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.it .fx { grid-column: 2 / 4; font: 11px var(--font-data); color: var(--muted); }
+.it[aria-pressed="true"] { border-color: var(--plan); background: rgba(240, 164, 106, 0.1); }
+.it.ev[aria-pressed="true"] { border-color: var(--muted); background: rgba(232, 226, 210, 0.06); }
+.it.end { cursor: default; }
+.it.end:hover { background: none; }
+.it.end .what { color: var(--muted); }
+.legend { display: flex; gap: 12px; font-size: 10px; color: var(--muted); letter-spacing: 0.04em; margin: 0 0 4px; }
+.legend i { display: inline-block; width: 7px; height: 7px; margin-right: 5px; box-sizing: border-box; vertical-align: 0; }
+.legend .b { border-radius: 50%; border: 2px solid var(--plan); width: 9px; height: 9px; vertical-align: -1px; }
+.legend .e { border: 1.5px solid var(--muted); transform: rotate(45deg); }
+.ed-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 2px 0 4px; }
+.ed-head b { font-weight: 500; color: var(--plan); font-size: 13px; }
+.ed-head span { font-size: 11px; color: var(--muted); text-align: right; }
+/* alternative plans side by side: what each costs in fuel and in time */
+#choice { border: 1px solid var(--plan); border-radius: 5px; padding: 8px 8px 6px; margin: 0 0 10px; background: rgba(240, 164, 106, 0.05); }
+#choice .ch-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+#choice .ch-head span { font-size: 12px; color: var(--accent-hi); }
+.opt {
+  display: grid; grid-template-columns: 34px 1fr auto; column-gap: 6px; row-gap: 2px; align-items: center; width: 100%; box-sizing: border-box;
+  margin: 0 0 5px; padding: 6px 7px; border: 1px solid var(--line); border-radius: 4px; background: rgba(232, 226, 210, 0.03);
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.opt:hover { border-color: var(--accent); }
+.opt[aria-pressed="true"] { border-color: var(--plan); background: rgba(240, 164, 106, 0.12); }
+.opt .nm { grid-column: 1 / 4; font-size: 12px; font-weight: 500; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.opt .badge { font: 500 9px var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--sky); background: var(--accent); border-radius: 3px; padding: 1px 4px; }
+.opt .k { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.opt .bar { height: 5px; border-radius: 3px; background: rgba(232, 226, 210, 0.08); overflow: hidden; }
+.opt .bar i { display: block; height: 100%; border-radius: 3px; }
+.opt .bar.dv i { background: var(--plan); }
+.opt .bar.tm { display: flex; }
+.opt .bar.tm i { background: var(--rad); border-radius: 0; }
+.opt .bar.tm i.w { background: rgba(108, 200, 222, 0.3); }
+.opt .bar.tm i:first-child { border-radius: 3px 0 0 3px; } .opt .bar.tm i:last-child { border-radius: 0 3px 3px 0; }
+.opt .v { font: 11px var(--font-data); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.opt .sub { grid-column: 1 / 4; font-size: 11px; color: var(--muted); line-height: 1.4; }
+.plan-row label.chk { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 .when { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 8px; }
 .when .num { font-size: 12px; color: var(--plan); }
 /* the number box takes whatever width is left, so the row still fits when the panel shows a scrollbar */
@@ -359,8 +413,15 @@ select.field option { background: #0e121e; }
 <aside id="man" class="plate panel" aria-label="Manoeuvre planner">
   <header><h2>Manoeuvre</h2><span id="planTotal"></span></header>
   <div class="sect" id="nodeSect">
+    <div id="choice" hidden>
+      <div class="ch-head"><span id="choiceTitle">Ways to do it</span><button class="btn small" type="button" id="choiceKeep" title="Keep the plan shown and close this comparison">Keep this one</button></div>
+      <div id="choiceList"></div>
+    </div>
+    <div id="itinWrap" hidden>
+      <div class="legend"><span><i class="b"></i>Burn: fires the engine</span><span><i class="e"></i>Event: no burn</span></div>
+      <ol id="itin" aria-label="The plan, in time order"></ol>
+    </div>
     <p class="hint" id="nodeHint">Click or tap anywhere on your orbit to place a manoeuvre node, or add one at:</p>
-    <div id="nodeTabs"></div>
     <div class="btns" id="quickAdd">
       <button class="btn small" type="button" data-at="ap" title="Add a node at the next apoapsis">Apoapsis</button>
       <button class="btn small" type="button" data-at="pe" title="Add a node at the next periapsis">Periapsis</button>
@@ -368,6 +429,7 @@ select.field option { background: #0e121e; }
       <button class="btn small" type="button" data-at="dn" title="Add a node where the orbit next crosses the equator heading south">Desc. node</button>
     </div>
     <div id="editor" hidden>
+      <div class="ed-head"><b id="edTitle">Burn 1</b><span id="edNote"></span></div>
       <div class="when"><span class="caption">Burn in</span><span class="num" id="nodeWhen">—</span>
         <span class="btns">
           <button class="btn small rep" type="button" data-shift="-10" title="Move the node 10° back along the orbit">«</button>
@@ -399,9 +461,9 @@ select.field option { background: #0e121e; }
   </div>
   <div class="sect">
     <div class="group-head" style="padding:0 0 4px">Plan it for me</div>
-    <div class="plan-row"><span class="lbl">Make the orbit circular</span>
-      <button class="btn small" type="button" id="circAp">at apoapsis</button>
-      <button class="btn small" type="button" id="circPe">at periapsis</button></div>
+    <p class="hint" style="margin-top:0">Where there is more than one way, you get a choice to compare, from least fuel to quickest.</p>
+    <div class="plan-row"><span class="lbl">Put me in a circular orbit round the nearest body</span>
+      <button class="btn small" type="button" id="circPlan" title="Compare ways to make the orbit circular where the plan ends: round the Moon if it gets there, otherwise round Earth">Plan</button></div>
     <div class="plan-row"><span class="lbl">Hohmann transfer to a circular orbit at</span>
       <input class="field" type="number" id="hohAlt" value="35786" step="100" min="100" aria-label="Target altitude in km"><span class="caption">km</span>
       <button class="btn small" type="button" id="hohPlan">Plan</button></div>
@@ -410,7 +472,11 @@ select.field option { background: #0e121e; }
       <button class="btn small" type="button" id="incPlan">Plan</button></div>
     <div class="plan-row"><span class="lbl">Transfer to the Moon, passing it at</span>
       <input class="field" type="number" id="moonPe" value="100" step="10" min="10" max="20000" aria-label="Height to pass the Moon at, in km"><span class="caption">km</span>
-      <button class="btn small" type="button" id="moonPlan" title="Find the next launch window to the Moon and plan the burn">Plan</button></div>
+      <button class="btn small" type="button" id="moonPlan" title="Find the next launch windows to the Moon and compare slow, cheap transfers with quick ones">Plan</button>
+      <label class="chk"><input type="checkbox" id="moonStay" checked> and stay in orbit round it</label></div>
+    <div class="plan-row"><span class="lbl">Return to Earth, ending in a circular orbit at</span>
+      <input class="field" type="number" id="retAlt" value="300" step="50" min="150" max="5000" aria-label="Height of the orbit to return to, in km"><span class="caption">km</span>
+      <button class="btn small" type="button" id="retPlan" title="Plan the burns home from wherever the plan ends, including leaving the Moon">Plan</button></div>
     <div class="plan-row"><button class="btn small" type="button" id="clearNodes">Delete all nodes</button></div>
   </div>
   <div class="sect">
@@ -506,6 +572,9 @@ select.field option { background: #0e121e; }
     <li>Press <b>Execute</b> to jump to the node and fire. Total Δv (change in velocity) is the "fuel" every mission budgets for.</li>
     <li>Not what you wanted? <b>Undo burn</b> puts the craft back where it was and the node back on the plan, so you can adjust it. It works for burns flown by hand too, and after a crash.</li>
   </ol>
+  <h3>Plans with several burns</h3>
+  <p>Add up to six burns. Each one is planned from where the burns before it leave you, so it only works if they go as planned. The Manoeuvre panel lists the plan in time order: <span class="o">burns</span> (round markers, like the nodes on the map) fire the engine; <b>events</b> (diamonds) are just things the path does on its own, such as reaching the Moon's sphere of influence or passing closest to it. Click a burn to edit it: the Orbit panel then shows the orbit just after it. Click an event to see the orbit at that point.</p>
+  <p><b>Plan it for me</b> can put you in a circular orbit round whichever body the plan ends at, take you to the Moon and into orbit round it, or bring you home. Where there is more than one way, it lays them side by side with the fuel (Δv) and the time each takes, so you can see what a quicker trip costs. Click one to see it on the map, then <b>Keep this one</b>.</p>
   <h3>The Moon</h3>
   <p>The Moon circles Earth every 27.3 days, about 384,000 km out. Inside its <b>sphere of influence</b> (the dashed ring round it) its gravity takes over, and your path bends round it; outside, only Earth counts. This is the patched-conic method Kerbal Space Program uses. A planned path that reaches the Moon shows a faint <span class="g">Moon at encounter</span> where it will be when you arrive, and the part of your path round the Moon is drawn about it.</p>
   <h3>Getting a better look</h3>
@@ -515,7 +584,8 @@ select.field option { background: #0e121e; }
     <li><b>Raise the far side.</b> From low Earth orbit, add a node and pull prograde to +500 m/s. Watch apoapsis climb on the opposite side of Earth while the node point stays put.</li>
     <li><b>Hohmann transfer.</b> From the equatorial parking orbit, plan a Hohmann transfer to 35,786 km (geostationary height). It takes two burns, about 2.4 and 1.5 km/s, half an orbit apart.</li>
     <li><b>Plane changes are expensive.</b> From the ISS-like orbit, plan an inclination change to 0°. Then compare doing it from far out at a transfer orbit's apoapsis, where you move slowly.</li>
-    <li><b>Fly to the Moon.</b> From the equatorial parking orbit, use <b>Transfer to the Moon</b>: about 3.1 km/s, then a 4 to 5 day coast. Execute it, warp to the Moon, then <b>circularise at periapsis</b> to be captured, about 0.8 km/s more. Skip that burn and the Moon flings you onto a new orbit round Earth: a gravity assist.</li>
+    <li><b>Fly to the Moon.</b> From the equatorial parking orbit, use <b>Transfer to the Moon</b>. The slow way takes about 3.1 km/s and a 5 day coast, then about 0.8 km/s to brake into orbit at the Moon. Compare the quicker transfers: they arrive faster, which makes braking dearer. Untick <b>stay in orbit</b> and the Moon flings you onto a new orbit round Earth instead: a gravity assist.</li>
+    <li><b>Come home.</b> From the low lunar orbit, plan <b>Return to Earth</b>. Braking into orbit at Earth costs about 3 km/s more than the trip itself, which is why Apollo let the atmosphere do it.</li>
     <li><b>Waiting for a window.</b> Try the same from the ISS-like orbit. Its tilt differs from the Moon's, so the planner waits days until the Moon comes round to where your orbit's plane crosses its path.</li>
     <li><b>The Oberth effect.</b> Put 100 m/s prograde at periapsis of the Molniya orbit, then the same at apoapsis. Burning where you are fastest changes your orbital energy far more.</li>
   </ul>
@@ -1848,13 +1918,13 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   // Each leg is one exact two-body orbit about Earth or the Moon. A leg ends at a node, at a crossing into or out of
   // the Moon's sphere of influence (the path carries on round the other body), or at a crash or escape.
   // refT is when the Moon is drawn for a leg about it: now, if the craft is already there, or else when it arrives.
-  function buildTrajectory() {
-    wake();
-    sim.nodes.sort((a, b) => a.t - b.t);
-    traj = [];
-    let orb = sim.orbit, t0 = sim.t, refT = sim.t, j = 0, planned = false;
+  // It works on any list of nodes, so a planner can try out a plan before showing it.
+  function computeTraj(orbit, tNow, nodes) {
+    nodes.sort((a, b) => a.t - b.t);
+    const traj = [];
+    let orb = orbit, t0 = tNow, refT = tNow, j = 0, planned = false;
     for (let guard = 0; ; guard++) {
-      const node = sim.nodes[j];
+      const node = nodes[j];
       const seg = { orb, body: orb.body, t0, refT, planned, t1: node ? node.t : Infinity, end: null, endT: Infinity,
         origin: orb.body === MOON ? toScene(moonAt(refT).r) : new THREE.Vector3() };
       const ev = legEvent(orb, t0);
@@ -1867,7 +1937,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
           continue;
         }
         // later nodes can never be reached: keep them, but skip them
-        for (let k = j; k < sim.nodes.length; k++) { sim.nodes[k].dead = true; sim.nodes[k].pre = null; }
+        for (let k = j; k < nodes.length; k++) { nodes[k].dead = true; nodes[k].pre = null; }
         seg.t1 = Infinity;
         if (ev.type === "soi") seg.end = "more";        // the path goes on, but we stop following it
         break;
@@ -1880,7 +1950,9 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       orb = cachedOrbit(s.r, add(s.v, dv), node.t, orb.body);
       t0 = node.t; planned = true; j++;
     }
+    return traj;
   }
+  function buildTrajectory() { wake(); traj = computeTraj(sim.orbit, sim.t, sim.nodes); }
   const finalOrbit = () => traj[traj.length - 1];
 
   // ---------- renderer ----------
@@ -2113,7 +2185,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     let el = nodeEls.get(node.id);
     if (!el) {
       el = document.createElement("div"); el.className = "node"; el.innerHTML = '<span class="tag"></span>';
-      el.title = "Manoeuvre node: drag along the orbit to move it";
+      el.title = "A burn (manoeuvre node): drag along the orbit to move it";
       labelLayer.appendChild(el); nodeEls.set(node.id, el);
       el.addEventListener("pointerdown", e => startNodeDrag(e, node, el));
     }
@@ -2226,9 +2298,19 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     r.el.addEventListener("pointerenter", () => { hlKey = r.mark || null; });
     r.el.addEventListener("pointerleave", () => { hlKey = null; });
   });
+  // The second column shows the orbit just after the selected burn (taking the burns before it as done), or the part
+  // of the path picked in the timeline, or else where the whole plan ends up.
+  function afterInfo() {
+    if (inspect && traj[inspect.k]) return { orb: traj[inspect.k].orb, label: inspect.label };
+    const n = sim.sel;
+    if (n && !n.dead && traj[n.leg + 1]) return { orb: traj[n.leg + 1].orb, label: `After burn ${nodeIndex(n)}` };
+    if (traj.some(l => l.planned)) return { orb: planLeg().orb, label: "After burns" };
+    return null;
+  }
   function updateElements(cur) {
-    const o = sim.orbit, fin = traj.some(l => l.planned) ? planLeg().orb : null;
-    document.getElementById("afterHead").hidden = !fin;
+    const o = sim.orbit, ai = afterInfo(), fin = ai && ai.orb;
+    const ah = document.getElementById("afterHead");
+    ah.hidden = !fin; if (ai) ah.textContent = ai.label;
     ROWS.forEach(r => {
       if (!r.el) return;
       const now = r.el.children[1], after = r.el.children[2];
@@ -2240,23 +2322,124 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
 
   // ---------- manoeuvre panel ----------
   const $ = id => document.getElementById(id);
-  const nodeTabs = $("nodeTabs"), editor = $("editor");
+  const editor = $("editor"), itinEl = $("itin");
   const dvRows = [...document.querySelectorAll(".dv")];
   function nodeIndex(n) { return sim.nodes.indexOf(n) + 1; }
-  function refreshPanel() {
-    nodeTabs.innerHTML = "";
-    sim.nodes.forEach(n => {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "btn small"; b.setAttribute("aria-pressed", String(n === sim.sel));
-      b.textContent = `Node ${nodeIndex(n)} · ${n.dead ? "unreachable" : fmtDv(nodeDv(n))}`;
-      if (n.dead) b.title = "An earlier part of the plan crashes or escapes before this node";
-      b.addEventListener("click", () => { sim.sel = n; refreshPanel(); });
-      nodeTabs.appendChild(b);
+  let inspect = null;          // a part of the path picked in the timeline: { k: leg index, label, key }
+
+  // How a burn changes the orbit, in a few words: the elements that moved the most.
+  function burnEffect(a, b) {
+    const B = b.body, bits = [];
+    const apTxt = o => o.e >= 1 || o.ra > B.soi ? "escapes" : fmtKm(o.ra - B.R);
+    const apA = apTxt(a), apB = apTxt(b);
+    const rel = (x, y) => Math.abs(x - y) / Math.max(1, Math.abs(x));
+    if (apA !== apB && (apA === "escapes" || apB === "escapes" || rel(a.ra, b.ra) > 0.005)) bits.push(`Ap ${apA} → ${apB}`);
+    if (rel(a.rp, b.rp) > 0.005) bits.push(`Pe ${fmtKm(a.rp - B.R)} → ${b.rp < B.R ? "below ground" : fmtKm(b.rp - B.R)}`);
+    if (Math.abs(a.i - b.i) > 0.2 * DEG) bits.push(`tilt ${(a.i / DEG).toFixed(1)}° → ${(b.i / DEG).toFixed(1)}°`);
+    if (b.e < 1e-3 && a.e >= 1e-3) bits.unshift("circular");
+    return bits.slice(0, 2).join(" · ") || "a small trim";
+  }
+  // One line on what an orbit is like: where a plan ends up.
+  function describeOrbit(o) {
+    const B = o.body;
+    if (o.e >= 1 || o.ra > B.soi) return `on a path leaving ${B.the}`;
+    if (o.e < 2e-3) return `a circular orbit ${fmtKm((o.rp + o.ra) / 2 - B.R)} above ${B.the}`;
+    return `an orbit round ${B.the}, ${fmtKm(o.rp - B.R)} × ${fmtKm(o.ra - B.R)}`;
+  }
+  // The plan in time order: each burn, and what happens between burns without one (crossing into or out of the Moon's
+  // sphere of influence, the closest pass, a crash). Built from the same legs the path is drawn from.
+  function itinerary() {
+    const items = [];
+    traj.forEach((leg, k) => {
+      const o = leg.orb, B = leg.body;
+      if (k > 0) {
+        const prev = traj[k - 1];
+        if (prev.end === "soi") items.push({ ev: true, t: leg.t0, k, key: `soi:${k - 1}`,
+          what: B === MOON ? "Enters the Moon's influence" : "Leaves the Moon's influence", label: B === MOON ? "Round the Moon" : "Round Earth" });
+        else { const n = sim.nodes.find(x => !x.dead && x.leg === k - 1); if (n) items.push({ node: n, t: n.t, k }); }
+        // the closest pass on this leg, unless the leg is just the final orbit going round and round
+        const tEnd = Math.min(leg.t1, leg.endT), loops = k === traj.length - 1 && !leg.end && o.e < 1 && prev.end !== "soi";
+        if (o.e > 2e-3 && !loops && o.rp > B.R) {
+          const tp = leg.t0 + timeToNu(o, leg.t0, 0);
+          if (tp > leg.t0 + 60 && tp < tEnd - 60) {
+            const low = B === EARTH && o.rp - RE < 100;
+            items.push({ ev: true, t: tp, k, key: `pe:${k}`, label: `Closest to ${B === MOON ? "the Moon" : "Earth"}`, atmo: low,
+              what: low ? `Dips into the atmosphere, ${fmtKm(o.rp - RE)} up` : `Closest to ${B.the}: ${fmtKm(o.rp - B.R)}` });
+          }
+        }
+      }
+      if (leg.end === "impact") items.push({ ev: true, warn: true, t: leg.endT, k, key: `end:${k}`, what: `Hits ${B.the}`, label: `Round ${B === MOON ? "the Moon" : "Earth"}` });
+      else if (leg.end === "escape") items.push({ ev: true, t: leg.endT, k, key: `end:${k}`, what: "Leaves Earth's influence for good", label: "Round Earth" });
+      else if (leg.end === "more") items.push({ ev: true, t: leg.endT, k, key: `end:${k}`, what: B === MOON ? "Leaves the Moon's influence" : "Enters the Moon's influence", label: `Round ${B === MOON ? "the Moon" : "Earth"}` });
     });
+    items.sort((a, b) => a.t - b.t);
+    // a dip into the atmosphere is where a real flight would end
+    const entry = items.findIndex(i => i.atmo);
+    if (entry >= 0 && !items.slice(entry + 1).some(i => i.node)) {
+      items.length = entry + 1;
+      items.push({ end: true, what: "Then it would re-enter. There is no air in this simulator, so here the path carries on." });
+      return items;
+    }
+    // unreachable nodes, after a crash or escape
+    sim.nodes.filter(n => n.dead).forEach(n => items.push({ node: n, t: n.t, dead: true }));
+    const last = traj[traj.length - 1];
+    if (items.some(i => i.node) && !last.end) items.push({ end: true, what: `Then ${describeOrbit(last.orb)}` });
+    return items;
+  }
+  let itinTimes = [];
+  function renderItinerary() {
+    const items = itinerary();
+    $("itinWrap").hidden = !items.length;
+    itinEl.innerHTML = ""; itinTimes = [];
+    if (inspect && !items.some(i => i.ev && i.k === inspect.k && i.key === inspect.key)) inspect = null;
+    items.forEach(it => {
+      const li = document.createElement("li"), b = document.createElement("button");
+      b.type = "button";
+      const n = it.node;
+      if (n) {
+        b.className = "it burn";
+        b.setAttribute("aria-pressed", String(n === sim.sel && !inspect));
+        const i = nodeIndex(n);
+        b.innerHTML = `<span class="ico"></span><span class="what"></span><span class="t num"></span><span class="fx"></span>`;
+        b.children[1].textContent = `Burn ${i} · ${n.dead ? "unreachable" : fmtDv(nodeDv(n))}`;
+        b.children[3].textContent = n.dead ? "An earlier part of the plan crashes or escapes first" : nodeDv(n) < 0.05 ? "no burn set yet" : burnEffect(traj[n.leg].orb, traj[n.leg + 1].orb);
+        b.title = i > 1 ? `Burn ${i}: planned from where burn${i > 2 ? `s 1 to ${i - 1}` : " 1"} leave${i > 2 ? "" : "s"} you, so it assumes ${i > 2 ? "they go" : "that goes"} as planned` : "Burn 1";
+        b.addEventListener("click", () => { inspect = null; sim.sel = n; refreshPanel(); });
+      } else if (it.end) {
+        b.className = "it ev end"; b.disabled = true;
+        b.innerHTML = `<span class="ico" style="border:0"></span><span class="what"></span><span class="t"></span>`;
+        b.children[1].textContent = it.what;
+      } else {
+        b.className = "it ev" + (it.warn ? " warn" : "");
+        b.setAttribute("aria-pressed", String(!!inspect && inspect.key === it.key));
+        b.innerHTML = `<span class="ico"></span><span class="what"></span><span class="t num"></span>`;
+        b.children[1].textContent = it.what;
+        b.title = "An event on the path, not a burn. Click to see the orbit here in the Orbit panel.";
+        b.addEventListener("click", () => {
+          inspect = inspect && inspect.key === it.key ? null : { k: it.k, key: it.key, label: it.label };
+          refreshPanel(); wake();
+        });
+        b.addEventListener("pointerenter", () => { hlKey = it.key; wake(); });
+        b.addEventListener("pointerleave", () => { hlKey = null; wake(); });
+      }
+      if (!it.end) itinTimes.push({ el: b.querySelector(".t"), t: it.t, dead: it.dead });
+      li.appendChild(b); itinEl.appendChild(li);
+    });
+    tickItinerary();
+  }
+  function tickItinerary() { itinTimes.forEach(x => { x.el.textContent = x.dead ? "" : `in ${fmtDur(x.t - sim.t, true)}`; }); }
+
+  function refreshPanel() {
+    renderItinerary();
     $("nodeHint").textContent = sim.nodes.length
-      ? (sim.nodes.length < MAX_NODES ? "Click or tap the orbit (or the dashed plan) to add another node, or add one at:" : "That's the most nodes at once. Execute or delete one first.")
-      : "Click or tap anywhere on your orbit to place a manoeuvre node, or add one at:";
+      ? (sim.nodes.length < MAX_NODES ? "Click or tap the orbit (or the dashed plan) to add another burn, or add one at:" : "That's the most burns at once. Execute or delete one first.")
+      : "Click or tap anywhere on your orbit to place a burn (a manoeuvre node), or add one at:";
     editor.hidden = !sim.sel;
+    if (sim.sel) {
+      const i = nodeIndex(sim.sel);
+      $("edTitle").textContent = `Burn ${i}${sim.nodes.length > 1 ? ` of ${sim.nodes.length}` : ""}`;
+      $("edNote").textContent = i > 1 ? `assumes burn${i > 2 ? `s 1–${i - 1}` : " 1"} ${i > 2 ? "go" : "goes"} as planned` : "";
+    }
     const total = sim.nodes.reduce((s, n) => s + nodeDv(n), 0);
     $("planTotal").textContent = sim.nodes.length ? `Δv planned ${fmtDv(total)}` : "";
     if (sim.sel) {
@@ -2267,6 +2450,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   const nodeDv = n => Math.hypot(n.pro, n.nrm, n.rad);
   function addNode(t, dv = {}) {
     if (sim.ended) return null;
+    if (!applying) closeChoice();
     if (sim.nodes.length >= MAX_NODES) { toast("That's the most nodes at once. Execute or delete one first."); return null; }
     t = Math.max(t, sim.t + 1);
     const n = { id: sim.nextId++, t, pro: dv.pro || 0, nrm: dv.nrm || 0, rad: dv.rad || 0 };
@@ -2275,22 +2459,30 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     return n;
   }
   function deleteNode(n) {
+    if (!applying) closeChoice();
     sim.nodes = sim.nodes.filter(x => x !== n);
     const el = nodeEls.get(n.id); if (el) { el.remove(); nodeEls.delete(n.id); }
     if (sim.sel === n) sim.sel = sim.nodes[0] || null;
     buildTrajectory(); refreshPanel();
   }
-  function changed() { buildTrajectory(); refreshPanel(); }
+  function changed() { closeChoice(); buildTrajectory(); refreshPanel(); }
 
   // leg of the trajectory that a node sits on (the orbit just before it)
   const legBefore = n => traj[n.leg] || traj[0];
-  // the leg the planners and quick-add buttons work on: the first one round the Moon after the last node, if the plan
-  // reaches the Moon (so "circularise at periapsis" captures you there), or else the last leg of the plan
-  function planLeg() {
-    const last = sim.nodes.length ? (sim.nodes[sim.nodes.length - 1].leg ?? 0) + 1 : 0;
-    const after = traj.slice(Math.min(last, traj.length - 1));
-    return after.find(l => l.body === MOON) || traj[traj.length - 1];
+  // The leg the planners and quick-add buttons work on: where the plan takes you after its last burn. Round the Moon
+  // if you're there already or the burn keeps you there; back round Earth if the burn leaves the Moon; and if the path
+  // heads out to the Moon, the part round it (so circularising there captures you). Otherwise the last leg.
+  function planLegOf(legs, nodes) {
+    const live = nodes.filter(n => !n.dead);
+    const first = Math.min(live.length ? live[live.length - 1].leg + 1 : 0, legs.length - 1), L = legs[first];
+    if (L.body === MOON) {
+      if (first === 0 || L.end !== "soi") return L;
+      return legs.find((l, k) => k > first && l.body === EARTH) || L;
+    }
+    for (let k = first + 1; k < legs.length; k++) if (legs[k].body === MOON && legs[k - 1].end === "soi") return legs[k];
+    return legs[legs.length - 1];
   }
+  const planLeg = () => planLegOf(traj, sim.nodes);
   function burn(dv) {
     const s = stateAt(sim.orbit, sim.t);
     sim.orbit = orbitFromState(s.r, add(s.v, dv), sim.t, sim.orbit.body);
@@ -2298,6 +2490,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   }
   function execute(n) {
     if (!n || sim.ended) return;
+    closeChoice();
     if (n.dead) { toast("This node can't be reached: an earlier part of the plan crashes or escapes first."); return; }
     if (sim.nodes[0] !== n) { toast("Execute the earlier node first: this plan assumes it has already fired."); sim.sel = sim.nodes[0]; refreshPanel(); return; }
     pushHistory(snapshot());
@@ -2322,6 +2515,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     held.clear(); setThrust();       // let go of the engine first, so a burn still being flown is the one undone
     const h = history.pop();
     if (!h) return;
+    closeChoice();
     clearNodeEls();
     sim.orbit = h.orbit; sim.t = h.t; sim.spent = h.spent; sim.ended = null;
     sim.nodes = h.nodes.map(n => ({ id: sim.nextId++, ...n }));
@@ -2410,8 +2604,6 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     if (n && !quiet) toast(`Circularising at ${which === "ap" ? "apoapsis" : "periapsis"}${o.body === MOON ? " round the Moon" : ""}: ${fmtDv(nodeDv(n))} ${n.pro >= 0 ? "prograde" : "retrograde"}.`);
     return n;
   }
-  $("circAp").addEventListener("click", () => circularise("ap"));
-  $("circPe").addEventListener("click", () => circularise("pe"));
   $("hohPlan").addEventListener("click", () => {
     const alt = parseFloat($("hohAlt").value);
     const leg = planLeg(), o = leg.orb, B = o.body;
@@ -2461,17 +2653,145 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     if (n) toast(`Plane change at ${c.which}${cands.length > 1 ? ", the higher of the two crossings, where you move slower" : ""}: ${fmtDv(nodeDv(n))}.`, 8000);
   });
 
-  // Transfer to the Moon: one prograde burn that stretches the orbit out to the Moon's distance, timed so the Moon is
-  // there when the craft arrives. Searches the next month for the moment when the far end of that transfer orbit lands
-  // nearest the Moon (the Moon must also be near the craft's orbital plane), then fine-tunes the burn on the real
-  // patched-conic path so the craft passes the Moon at the chosen height.
-  function evalMoonShot(o, t, extra) {
-    const s = stateAt(o, t), f = burnFrame(s), r1 = len(s.r);
-    let rA = MOON_ORB.a, tof = 0;
-    for (let it = 0; it < 3; it++) { const at = (r1 + rA) / 2; tof = Math.PI * Math.sqrt(at * at * at / MU); rA = len(moonAt(t + tof).r); }
-    const vT = Math.sqrt(MU * (2 / r1 - 2 / (r1 + rA))) + (extra || 0) / 1000;
-    const dv = sub(mul(unit(cross(cross(s.r, s.v), s.r)), vT), s.v);   // horizontal, so the far end lies straight opposite
-    return { s, f, dv, tof, miss: len(sub(mul(unit(s.r), -rA), moonAt(t + tof).r)) };
+  // ---------- planners ----------
+  // Each planner works out one or more complete plans (lists of burns) from where the current plan ends, tries each on
+  // the real patched-conic path, and, where there is a real choice, lays them side by side to compare.
+  const horiz = s => unit(cross(cross(s.r, s.v), s.r));      // straight ahead, level with the ground
+  function burnSpec(o, t, dv) {                               // a burn (km/s vector) at time t on orbit o, in m/s along the burn frame
+    const f = burnFrame(stateAt(o, t));
+    return { t, pro: dot(dv, f.pro) * 1000, nrm: dot(dv, f.nrm) * 1000, rad: dot(dv, f.rad) * 1000 };
+  }
+  // fly level at a given speed: the point becomes an apsis of the new orbit
+  function levelSpec(o, t, speed) { const s = stateAt(o, t); return burnSpec(o, t, sub(mul(horiz(s), speed), s.v)); }
+  const circSpec = (o, t) => levelSpec(o, t, Math.sqrt(o.mu / len(stateAt(o, t).r)));
+  const specDv = n => Math.hypot(n.pro, n.nrm, n.rad);
+  // the path with some burns added to the current plan, worked out without touching it
+  function trial(specs) {
+    const nodes = sim.nodes.map(n => ({ t: n.t, pro: n.pro, nrm: n.nrm, rad: n.rad })).concat(specs.map(x => ({ ...x })));
+    const legs = computeTraj(sim.orbit, sim.t, nodes);
+    return { legs, nodes, ok: nodes.every(n => !n.dead) };
+  }
+  const trialLeg = tr => planLegOf(tr.legs, tr.nodes);
+  function freeSlots(need) {
+    if (sim.ended) { toast("The flight has ended. Undo the last burn or restart first."); return false; }
+    if (sim.nodes.length + need > MAX_NODES) { toast(`This needs ${need} free burn slot${need > 1 ? "s" : ""}. Execute or delete a burn first.`); return false; }
+    return true;
+  }
+  const pickBy = (arr, f) => arr.reduce((b, x) => (!b || f(x) < f(b) ? x : b), null);
+
+  // ---------- comparing alternative plans ----------
+  // A planner with more than one way to do something offers them all: each row shows its fuel (Δv) and how long until
+  // it's done, and clicking a row swaps that plan in, so the path, the timeline and the Orbit panel all show it.
+  let choice = null, applying = false;
+  function closeChoice() { if (applying || !choice) return; choice = null; $("choice").hidden = true; }
+  function offerChoice(title, opts) {
+    opts = opts.filter(o => o && o.nodes.length && sim.nodes.length + o.nodes.length <= MAX_NODES && isFinite(o.doneT)).filter(o => {
+      const tr = trial(o.nodes);
+      if (!tr.ok || tr.legs[tr.legs.length - 1].end === "impact") return false;
+      o.dv = o.nodes.reduce((a, n) => a + specDv(n), 0);
+      o.startT = Math.min(...o.nodes.map(n => n.t));
+      return true;
+    });
+    // Two ways within about 1% of each other's fuel are no real choice: if one is also much quicker, offer that one;
+    // if they take about as long, offer the cheaper.
+    const close = (a, b) => b !== a && b.nodes.length === a.nodes.length && Math.abs(b.dv - a.dv) <= Math.max(20, a.dv * 0.01);
+    opts = opts.filter(a => !opts.some(b => close(a, b) && (b.doneT < a.doneT - 6 * 3600 || (Math.abs(b.doneT - a.doneT) <= 6 * 3600 && (b.dv < a.dv || (b.dv === a.dv && opts.indexOf(b) < opts.indexOf(a)))))));
+    if (!opts.length) return false;
+    const minDv = Math.min(...opts.map(o => o.dv)), minT = Math.min(...opts.map(o => o.doneT));
+    opts.forEach(o => { o.cheap = o.dv - minDv < 1; o.quick = o.doneT - minT < 60; });
+    choice = { title, opts, idx: -1, ids: [] };
+    $("choiceTitle").textContent = title;
+    const pref = opts.findIndex(o => o.def);
+    applyChoice(pref >= 0 ? pref : opts.findIndex(o => o.cheap));
+    if (opts.length === 1) { choice = null; $("choice").hidden = true; return true; }
+    $("choice").scrollIntoView({ block: "nearest" });
+    return true;
+  }
+  function applyChoice(i) {
+    const c = choice, o = c.opts[i];
+    applying = true;
+    sim.nodes.filter(n => c.ids.includes(n.id)).forEach(deleteNode);
+    c.ids = [];
+    o.nodes.forEach(x => { const n = addNode(x.t, x); if (n) c.ids.push(n.id); });
+    applying = false;
+    c.idx = i; inspect = null;
+    renderChoice(); refreshPanel();
+  }
+  function renderChoice() {
+    const c = choice, list = $("choiceList");
+    $("choice").hidden = !c;
+    if (!c) return;
+    list.innerHTML = "";
+    const maxDv = Math.max(...c.opts.map(o => o.dv)), maxT = Math.max(...c.opts.map(o => o.doneT - sim.t));
+    const pct = (x, m) => `${Math.max(3, x / m * 100).toFixed(1)}%`;
+    c.opts.forEach((o, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "opt"; b.setAttribute("aria-pressed", String(i === c.idx));
+      b.innerHTML = `<span class="nm"></span>
+        <span class="k" title="Total change in speed: the fuel the plan needs">Δv</span><span class="bar dv"><i style="width:${pct(o.dv, maxDv)}"></i></span><span class="v"></span>
+        <span class="k" title="Time from now until the plan is done: the pale part is waiting for the first burn, the bright part under way">Time</span><span class="bar tm"><i class="w" style="width:${(Math.max(0, o.startT - sim.t) / maxT * 100).toFixed(1)}%"></i><i style="width:${pct(o.doneT - Math.max(o.startT, sim.t), maxT)}"></i></span><span class="v"></span>
+        <span class="sub"></span>`;
+      const nm = b.querySelector(".nm"), v = b.querySelectorAll(".v");
+      nm.textContent = o.name;
+      if (o.cheap) nm.insertAdjacentHTML("beforeend", '<span class="badge">least fuel</span>');
+      if (o.quick) nm.insertAdjacentHTML("beforeend", '<span class="badge">quickest</span>');
+      v[0].textContent = `${fmtDv(o.dv)} · ${o.nodes.length} burn${o.nodes.length > 1 ? "s" : ""}`;
+      v[1].textContent = fmtDur(o.doneT - sim.t, true);
+      b.querySelector(".sub").textContent = o.note || "";
+      b.addEventListener("click", () => applyChoice(i));
+      list.appendChild(b);
+    });
+  }
+  $("choiceKeep").addEventListener("click", () => { closeChoice(); toast("Plan kept. Execute burn 1 when you're ready, or adjust any burn first."); });
+
+  // ---------- a circular orbit round the nearest body ----------
+  // Where the plan ends: round the Moon if the path gets there, otherwise round Earth. Circularising at periapsis or
+  // apoapsis takes one level burn; circularising anywhere else also has to turn the path level, which costs more.
+  function planCircular() {
+    closeChoice();
+    if (!freeSlots(1)) return;
+    const leg = planLeg(), o = leg.orb, B = o.body, end = Math.min(leg.endT, leg.t1);
+    if (o.e < 1e-3) { toast(`Already circular round ${B.the}.`); return; }
+    const reach = t => isFinite(t) && t > sim.t + 1 && t < end - 1;
+    const alt = t => len(stateAt(o, t).r) - B.R, low = B === MOON ? 10 : 100;
+    const tPe = timeAt(leg, "pe"), tAp = timeAt(leg, "ap"), opts = [];
+    if (reach(tPe) && alt(tPe) > low) opts.push({ name: `Low: at periapsis, ${fmtKm(alt(tPe))} up`, nodes: [circSpec(o, tPe)], doneT: tPe,
+      note: `Burns at the lowest point${B === MOON && leg.t0 > sim.t + 1 ? ", where you pass closest to the Moon: this is the burn that captures you" : ""}.` });
+    if (o.e < 1 && reach(tAp) && o.ra < B.soi * 0.9) opts.push({ name: `High: at apoapsis, ${fmtKm(alt(tAp))} up`, nodes: [circSpec(o, tAp)], doneT: tAp,
+      note: "Burns at the highest point and stays up there." });
+    // the soonest burn: a couple of minutes ahead, or where the path is first comfortably inside the body's influence
+    let tS = Math.max(leg.t0, sim.t) + 120;
+    if (len(stateAt(o, tS).r) > B.soi * 0.8) { const dt = timeToNu(o, leg.t0, radiusToNu(o, B.soi * 0.8, false)); tS = isFinite(dt) ? leg.t0 + dt : NaN; }
+    const near = t => isFinite(t) && Math.abs(t - tS) < 0.05 * (t - sim.t) + 300;
+    if (reach(tS) && alt(tS) > low && !near(tPe) && !near(tAp)) opts.push({ name: `Soonest: ${fmtKm(alt(tS))} up`, nodes: [circSpec(o, tS)], doneT: tS,
+      note: "Burns straight away, at whatever height you're at. Part of the burn goes on turning your path level, which costs extra." });
+    if (!offerChoice(`Circular orbit round ${B.the}`, opts)) toast(`Can't find a point to circularise round ${B.the} before this path ends.`);
+    else toast(choice ? `${choice.opts.length} ways to circularise round ${B.the}, compared in the Manoeuvre panel. Click one to see it on the map.` : `Circularising round ${B.the}: ${fmtDv(choiceDv())}.`, 8000);
+  }
+  const choiceDv = () => sim.nodes.length ? nodeDv(sim.nodes[sim.nodes.length - 1]) : 0;
+  $("circPlan").addEventListener("click", planCircular);
+
+  // ---------- transfer to the Moon ----------
+  // One prograde burn stretches the orbit out to the Moon's distance, timed so the Moon is there when the craft
+  // arrives. With fast = 0 it is the least energy that reaches the Moon (like a Hohmann transfer, about 5 days); each
+  // extra m/s shortens the trip, but the craft then arrives faster, which also makes it dearer to stop at the Moon.
+  // Searches the next month for the moment when the arrival point lands nearest the Moon (the Moon must also be near
+  // the craft's orbital plane), then fine-tunes the burn on the real patched-conic path to pass at the chosen height.
+  function evalMoonShot(o, t, extra = 0, fast = 0) {
+    const s = stateAt(o, t), f = burnFrame(s), r1 = len(s.r), ur = unit(s.r), ut = horiz(s);
+    let rA = MOON_ORB.a, tof = 0, nu = Math.PI, vT = 0;
+    for (let it = 0; it < 3; it++) {
+      vT = Math.sqrt(MU * (2 / r1 - 2 / (r1 + rA))) + fast / 1000;
+      const e = r1 * vT * vT / MU - 1, p = r1 * (1 + e), a = p / (1 - e * e);
+      nu = Math.acos(clamp((p / rA - 1) / e, -1, 1));
+      if (e < 1) { const E = 2 * Math.atan(Math.sqrt((1 - e) / (1 + e)) * Math.tan(nu / 2)); tof = (E - e * Math.sin(E)) / Math.sqrt(MU / (a * a * a)); }
+      else { const F = 2 * Math.atanh(Math.sqrt((e - 1) / (e + 1)) * Math.tan(nu / 2)); tof = (e * Math.sinh(F) - F) / Math.sqrt(MU / Math.pow(-a, 3)); }
+      rA = len(moonAt(t + tof).r);
+    }
+    vT += extra / 1000;
+    const dv = sub(mul(ut, vT), s.v);
+    const arrive = add(mul(ur, rA * Math.cos(nu)), mul(ut, rA * Math.sin(nu)));
+    return { s, f, dv, tof, miss: len(sub(arrive, moonAt(t + tof).r)) };
   }
   // where a burn at time t sends the craft: the first leg round the Moon, if it gets there
   function moonPass(o, t, dv, tof) {
@@ -2479,26 +2799,22 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     const tE = findEncounter(o2, t, t + tof * 1.6);
     return tE === null ? null : rebaseAt(o2, tE);
   }
-  function planMoon() {
-    const leg = finalOrbit(), o = leg.orb, peT = parseFloat($("moonPe").value);
-    if (!isFinite(peT) || peT < 10 || peT > 20000) { toast("Pick a height between 10 km and 20,000 km to pass the Moon at."); return; }
-    if (o.body !== EARTH || o.e >= 1 || leg.end) { toast("A transfer to the Moon starts from a closed orbit round Earth that doesn't hit the ground. Fix this path first."); return; }
-    if (o.ra > 150000) { toast("This orbit already reaches a long way out. The planner starts from orbits below 150,000 km."); return; }
-    if (sim.nodes.length >= MAX_NODES) { toast("This needs a free node slot. Delete or execute a node first."); return; }
-    const tStart = leg.t0 + 120, tEnd = tStart + 30 * 86400, step = clamp(o.period / 180, 15, 1800);
+  function moonShot(o, leg, peT, fast) {
+    const tStart = Math.max(leg.t0, sim.t) + 120, tEnd = tStart + 30 * 86400, step = clamp(o.period / 180, 15, 1800);
+    const shot = (t, extra = 0) => evalMoonShot(o, t, extra, fast);
     // coarse scan, then refine each dip in the miss distance
     let prev = Infinity, prev2 = Infinity, best = null;
     const refine = tc => {
       let lo = tc - step * 2, hi = tc + step * 2;
       for (let k = 0; k < 40; k++) {
         const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3;
-        if (evalMoonShot(o, m1).miss < evalMoonShot(o, m2).miss) hi = m2; else lo = m1;
+        if (shot(m1).miss < shot(m2).miss) hi = m2; else lo = m1;
       }
       const t = Math.max(tStart, (lo + hi) / 2);
-      return { t, ...evalMoonShot(o, t) };
+      return { t, ...shot(t) };
     };
     for (let t = tStart; t < tEnd; t += step) {
-      const m = evalMoonShot(o, t).miss;
+      const m = shot(t).miss;
       if (prev < prev2 && prev <= m && prev < 40000) {       // a dip just passed
         const c = refine(t - step);
         if (!best || c.miss < best.miss) best = c;
@@ -2506,7 +2822,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       }
       prev2 = prev; prev = m;
     }
-    if (!best) { toast("No launch window to the Moon in the next 30 days from this orbit."); return; }
+    if (!best) return null;
     // fine-tune: adjust the burn size and its timing a little to pass the Moon at the chosen height
     const target = RM + peT;
     let pick = null;
@@ -2514,7 +2830,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       for (let extra = -40; extra <= 40; extra += 2) {
         const t = best.t + dt;
         if (t < tStart) continue;
-        const c = evalMoonShot(o, t, extra), m = moonPass(o, t, c.dv, c.tof);
+        const c = shot(t, extra), m = moonPass(o, t, c.dv, c.tof);
         c.extra = extra;
         if (!m) continue;
         const score = Math.abs(m.rp - target) + (m.rp < RM + 5 ? 1e5 : 0) + Math.abs(extra) * 2;
@@ -2524,21 +2840,178 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     if (pick) {   // finer pass round the best
       const p0 = pick;
       for (let dt = -30; dt <= 30; dt += 3) for (let extra = -2; extra <= 2; extra += 0.2) {
-        const t = p0.t + dt, c = evalMoonShot(o, t, (p0.c.extra || 0) + extra), m = moonPass(o, t, c.dv, c.tof);
+        const t = p0.t + dt, c = shot(t, (p0.c.extra || 0) + extra), m = moonPass(o, t, c.dv, c.tof);
         c.extra = (p0.c.extra || 0) + extra;
         if (!m) continue;
         const score = Math.abs(m.rp - target) + (m.rp < RM + 5 ? 1e5 : 0);
         if (score < pick.score) pick = { score, t, c, m };
       }
     }
-    const use = pick ? pick.c : best, tBurn = pick ? pick.t : best.t, f = burnFrame(stateAt(o, tBurn));
-    const n = addNode(tBurn, { pro: dot(use.dv, f.pro) * 1000, nrm: dot(use.dv, f.nrm) * 1000, rad: dot(use.dv, f.rad) * 1000 });
-    if (!n) return;
-    toast(pick
-      ? `Transfer to the Moon: ${fmtDv(nodeDv(n))} prograde in ${fmtDur(tBurn - sim.t, true)}, reaching the Moon's sphere of influence ${fmtDur(pick.m.t0 - tBurn, true)} later and passing ${fmtKm(pick.m.rp - RM)} above the Moon. To stay there, circularise at the Moon's periapsis.`
-      : `Transfer to the Moon: ${fmtDv(nodeDv(n))} in ${fmtDur(tBurn - sim.t, true)}. It comes close, but misses the Moon's sphere of influence: nudge the burn to get an encounter.`, 12000);
+    const use = pick ? pick.c : best, tBurn = pick ? pick.t : best.t;
+    return { t: tBurn, spec: burnSpec(o, tBurn, use.dv), pass: pick ? pick.m : null };
+  }
+  const MOON_SPEEDS = [
+    { fast: 0, name: "Slow and cheap" },
+    { fast: 20, name: "About 3 days, like Apollo" },
+    { fast: 120, name: "Fast" },
+  ];
+  function planMoon() {
+    closeChoice();
+    const leg = planLeg(), o = leg.orb, peT = parseFloat($("moonPe").value), stay = $("moonStay").checked;
+    if (!isFinite(peT) || peT < 10 || peT > 20000) { toast("Pick a height between 10 km and 20,000 km to pass the Moon at."); return; }
+    if (o.body !== EARTH || o.e >= 1 || leg.end) { toast("A transfer to the Moon starts from a closed orbit round Earth that doesn't hit the ground. Fix this path first."); return; }
+    if (o.ra > 150000) { toast("This orbit already reaches a long way out. The planner starts from orbits below 150,000 km."); return; }
+    if (!freeSlots(stay ? 2 : 1)) return;
+    const opts = [];
+    let near = null;
+    for (const sp of MOON_SPEEDS) {
+      const shot = moonShot(o, leg, peT, sp.fast);
+      if (!shot) continue;
+      const tr = trial([shot.spec]), ml = trialLeg(tr), tPe = ml.body === MOON ? timeAt(ml, "pe") : NaN;
+      if (!shot.pass || !isFinite(tPe)) { near = near || shot; continue; }
+      const nodes = [shot.spec];
+      if (stay) nodes.push(circSpec(ml.orb, tPe));
+      opts.push({ name: sp.name, nodes, doneT: tPe,
+        note: `Leaves in ${fmtDur(shot.t - sim.t, true)}, then ${fmtDur(tPe - shot.t, true)} to the Moon, passing ${fmtKm(ml.orb.rp - RM)} up${stay ? ", where burn 2 brakes into orbit" : ""}.` });
+    }
+    if (offerChoice(stay ? "Ways to orbit the Moon" : "Ways to fly past the Moon", opts)) {
+      toast(choice
+        ? `${choice.opts.length} ways to the Moon, compared in the Manoeuvre panel: slower transfers need less fuel. Click one to see it on the map.`
+        : `Transfer to the Moon planned: ${fmtDv(choiceDv())}.`, 9000);
+      return;
+    }
+    if (!near) { toast("No launch window to the Moon in the next 30 days from this orbit."); return; }
+    const n = addNode(near.t, near.spec);
+    if (n) toast(`Transfer to the Moon: ${fmtDv(nodeDv(n))} in ${fmtDur(near.t - sim.t, true)}. It comes close, but misses the Moon's sphere of influence: nudge the burn to get an encounter.`, 12000);
   }
   $("moonPlan").addEventListener("click", planMoon);
+
+  // ---------- return to Earth ----------
+  // From round the Moon: one prograde burn, timed so that once the craft leaves the Moon's sphere of influence its
+  // orbit round Earth dips to the chosen height. The Moon moves at 1 km/s, and to fall back to Earth the craft has to
+  // leave it heading backwards against that motion, so only some burn times work cheaply; which ones depends on how
+  // the orbit round the Moon is tilted, and that changes over the month. Scans two weeks of burn times, finds the
+  // smallest burn that works at each, and offers the cheapest, the quickest, and a direct re-entry.
+  function returnFromMoon(leg, alt) {
+    const o = leg.orb, closed = o.e < 1 && !leg.end;
+    const tA = Math.max(leg.t0, sim.t) + 60, tB = closed ? tA + 14 * 86400 : Math.min(leg.endT, leg.t1) - 60;
+    if (!(tB > tA)) return [];
+    const exitNu = oM => radiusToNu(oM, SOI_M, true);
+    const evalTEI = (t, dvp) => {
+      const s = stateAt(o, t), oM = orbitFromState(s.r, add(s.v, mul(unit(s.v), dvp / 1000)), t, MOON);
+      if (oM.e < 1 && oM.ra < SOI_M) return null;
+      const dt = timeToNu(oM, t, exitNu(oM));
+      if (!isFinite(dt) || (oM.rp < RM + 5 && timeToNu(oM, t, 0) < dt)) return null;   // never leaves, or hits the Moon first
+      const tx = t + dt, sx = stateAt(oM, tx), m = moonAt(tx);
+      const oE = orbitFromState(add(sx.r, m.r), add(sx.v, m.v), tx, EARTH);
+      return { rp: oE.rp, tPe: tx + timeToNu(oE, tx, 0), oE };
+    };
+    const GRID = [];
+    for (let d = 100; d <= 3000; d += 100) GRID.push(d);
+    const rowsAt = t => GRID.map(dv => { const e = evalTEI(t, dv); return { dv, rp: e ? e.rp : null }; });
+    // the smallest prograde burn at time t that brings Earth periapsis to radius r
+    function solve(t, r, rows = rowsAt(t)) {
+      for (let k = 1; k < rows.length; k++) {
+        const a = rows[k - 1], b = rows[k];
+        if (a.rp === null || b.rp === null || (a.rp - r) * (b.rp - r) > 0) continue;
+        let lo = a.dv, hi = b.dv, flo = a.rp - r;
+        for (let it = 0; it < 22; it++) {
+          const mid = (lo + hi) / 2, e = evalTEI(t, mid);
+          if (!e) { lo = mid; continue; }
+          if ((e.rp - r > 0) === (flo > 0)) { lo = mid; flo = e.rp - r; } else hi = mid;
+        }
+        const dv = (lo + hi) / 2, e = evalTEI(t, dv);
+        if (e && isFinite(e.tPe) && Math.abs(e.rp - r) < 20) return { t, dv, rp: e.rp, tPe: e.tPe, oE: e.oE };
+      }
+      return null;
+    }
+    const rT = RE + alt, rIn = RE + 60;
+    const capture = x => (x.oE.h / x.oE.rp - Math.sqrt(MU / x.oE.rp)) * 1000;   // braking into a circular orbit at periapsis
+    const step = closed ? o.period / 24 : (tB - tA) / 300;
+    const home = [], entry = [];
+    for (let t = tA; t <= tB; t += step) {
+      const rows = rowsAt(t), a = solve(t, rT, rows), b = solve(t, rIn, rows);
+      if (a) home.push(a);
+      if (b) entry.push(b);
+    }
+    // polish a burn time: the best nearby, by golden-section search
+    const polish = (x, r, f) => {
+      if (!x) return null;
+      let lo = Math.max(tA, x.t - step), hi = Math.min(tB, x.t + step), best = x;
+      const g = t => { const y = solve(t, r); if (y && f(y) < f(best)) best = y; return y ? f(y) : Infinity; };
+      for (let k = 0; k < 24; k++) { const m1 = lo + (hi - lo) * 0.382, m2 = lo + (hi - lo) * 0.618; if (g(m1) < g(m2)) hi = m2; else lo = m1; }
+      return best;
+    };
+    // the cheapest, but not waiting days to save a few m/s: the soonest of those within 1% of the cheapest
+    const thrifty = (arr, cost) => {
+      const m = pickBy(arr, cost);
+      return m && pickBy(arr.filter(x => cost(x) <= cost(m) + Math.max(20, cost(m) * 0.01)), x => x.tPe);
+    };
+    const cheap = polish(thrifty(home, x => x.dv + capture(x)), rT, x => x.dv + capture(x));
+    const quick = polish(pickBy(home, x => x.tPe), rT, x => x.tPe);
+    const splash = polish(thrifty(entry, x => x.dv), rIn, x => x.dv);
+    const opts = [];
+    const withCapture = (x, name, note, def) => {
+      if (!x) return;
+      const tei = { t: x.t, pro: x.dv, nrm: 0, rad: 0 }, el = trialLeg(trial([tei])), tPe = el.body === EARTH ? timeAt(el, "pe") : NaN;
+      if (!isFinite(tPe) || Math.abs(el.orb.rp - rT) > 50) return;
+      opts.push({ name, nodes: [tei, circSpec(el.orb, tPe)], doneT: tPe, note: note(x, tPe), def });
+    };
+    withCapture(cheap, cheap && cheap.t - sim.t > 86400 ? "Into orbit: wait for the cheapest window" : "Into orbit, using least fuel", (x, tPe) => `${x.t - sim.t > 86400 ? `Waits ${fmtDur(x.t - sim.t, true)} for the Moon to line up` : `Leaves in ${fmtDur(x.t - sim.t, true)}`}, then ${fmtDur(tPe - x.t, true)} home, and brakes into a ${fmtKm(alt)} orbit.`, true);
+    withCapture(quick, "Into orbit, as fast as possible", (x, tPe) => `Leaves in ${fmtDur(x.t - sim.t, true)}, ${fmtDur(tPe - x.t, true)} home, then brakes into a ${fmtKm(alt)} orbit.`);
+    if (splash) opts.push({ name: "Re-entry, as Apollo did", nodes: [{ t: splash.t, pro: splash.dv, nrm: 0, rad: 0 }], doneT: splash.tPe,
+      note: "No braking burn: it dips to 60 km and lets the air slow it down. This simulator has no air, so here the craft would sail on round Earth." });
+    return opts;
+  }
+  // From an orbit round Earth: drop periapsis to the chosen height, then brake into a circular orbit there. Dropping
+  // it from apoapsis costs least; doing it straight away saves the wait. Or skip the second burn and re-enter.
+  function returnRoundEarth(leg, alt) {
+    const o = leg.orb, rT = RE + alt, rIn = RE + 60, end = Math.min(leg.endT, leg.t1), opts = [];
+    const reach = t => isFinite(t) && t > sim.t + 1 && t < end - 1;
+    if (o.e >= 1) {
+      const tPe = timeAt(leg, "pe");
+      if (!reach(tPe)) { toast("This path has already passed its closest point to Earth and is on its way out."); return null; }
+      opts.push({ name: `Brake into orbit at periapsis, ${fmtKm(o.rp - RE)} up`, nodes: [circSpec(o, tPe)], doneT: tPe,
+        note: "Brakes where you pass closest and fastest, which is where braking does most." });
+      return opts;
+    }
+    if (o.rp < RE + 100) { toast("You're already coming down into the atmosphere."); return null; }
+    const tAp = o.e > 1e-3 ? timeAt(leg, "ap") : NaN, tNow = Math.max(leg.t0, sim.t) + 120;
+    const pts = [];
+    if (reach(tAp)) pts.push({ t: tAp, at: "apoapsis", soon: false });
+    if (reach(tNow) && !(reach(tAp) && tAp - tNow < 0.1 * o.period)) pts.push({ t: tNow, at: "now", soon: true });
+    pts.forEach(p => {
+      const r1 = len(stateAt(o, p.t).r);
+      // fly level so this point becomes the apoapsis of an orbit dipping to the target height
+      const drop = r => levelSpec(o, p.t, Math.sqrt(MU * 2 * r / (r1 * (r1 + r))));
+      if (r1 > rT + 20) {
+        const b1 = drop(rT), el = trialLeg(trial([b1])), tPe = timeAt(el, "pe");
+        if (el.body === EARTH && isFinite(tPe)) opts.push({ name: p.soon ? "Into orbit, starting now" : "Into orbit, starting from apoapsis",
+          nodes: [b1, circSpec(el.orb, tPe)], doneT: tPe, def: !p.soon || !reach(tAp),
+          note: `Drops the low point to ${fmtKm(alt)}${p.soon ? " now" : " from the highest point, where it costs least"}, then brakes into a circular orbit there.` });
+      }
+      if (!p.soon || !reach(tAp)) {
+        const b = drop(rIn), el = trialLeg(trial([b])), tPe = timeAt(el, "pe");
+        if (el.body === EARTH && isFinite(tPe)) opts.push({ name: "Re-entry, no braking burn", nodes: [b], doneT: tPe,
+          note: "One burn drops the low point to 60 km, where the air would slow the craft down. This simulator has no air, so here it would sail on round." });
+      }
+    });
+    if (!opts.length) toast(`You're already about as low as a ${fmtKm(alt)} orbit.`);
+    return opts.length ? opts : null;
+  }
+  function planReturn() {
+    closeChoice();
+    const alt = parseFloat($("retAlt").value);
+    if (!isFinite(alt) || alt < 150 || alt > 5000) { toast("Pick an orbit height between 150 km and 5,000 km to return to."); return; }
+    if (!freeSlots(1)) return;
+    const leg = planLeg();
+    if (leg.end === "impact") { toast("This path hits the ground first. Fix it before planning the way home."); return; }
+    const opts = leg.body === MOON ? returnFromMoon(leg, alt) : returnRoundEarth(leg, alt);
+    if (!opts) return;
+    if (!offerChoice("Ways home to Earth", opts)) { toast(leg.body === MOON ? "Couldn't find a way back to Earth from this path round the Moon in the next two weeks." : "Couldn't find a way down from this orbit."); return; }
+    toast(choice ? `${choice.opts.length} ways home, compared in the Manoeuvre panel. Click one to see it on the map.` : "Way home planned.", 9000);
+  }
+  $("retPlan").addEventListener("click", planReturn);
 
   // fly by hand
   const thrustBtns = [...document.querySelectorAll("#thrust button")];
@@ -2769,6 +3242,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     const s = sc.s();
     sim.t = 0; sim.spent = 0; sim.ended = null;
     sim.orbit = orbitFromState(s.r, s.v, 0, sc.body || EARTH);
+    closeChoice(); inspect = null;
     clearNodeEls(); sim.nodes = []; sim.sel = null;
     history.length = 0; handBurn = null; syncUndo();
     setWarp(sc.warp); setPlaying(true);
@@ -2979,16 +3453,17 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       const full = k === 0 || k === traj.length - 1 || B === MOON;
       if (full && o.e > 1e-4) {
         if (o.e < 1 && onLeg(leg, Math.PI)) place(mark(cls, `${pre}Ap ${fmtKm(o.ra - B.R)}`, k ? "" : "ap"), at(leg, Math.PI));
-        if (onLeg(leg, 0) && o.rp > B.R) place(mark(cls, `${pre}Pe ${fmtKm(o.rp - B.R)}`, k ? "" : "pe"), at(leg, 0));
+        if (onLeg(leg, 0) && o.rp > B.R) place(mark(cls, `${pre}Pe ${fmtKm(o.rp - B.R)}`, k ? `pe:${k}` : "pe"), at(leg, 0));
       }
       if (full && B !== MOON && !o.equatorial && o.i > 0.05 * DEG) {
         const an = nuOfLine(o, "an");
         if (onLeg(leg, an) && (o.e < 1 || Math.abs(wrapPi(an)) < o.nuAsym)) place(mark(cls, "AN", k ? "" : "an"), at(leg, an));
         if (onLeg(leg, an + Math.PI) && (o.e < 1 || Math.abs(wrapPi(an + Math.PI)) < o.nuAsym)) place(mark(cls, "DN", k ? "" : "an"), at(leg, an + Math.PI));
       }
-      if (leg.end === "impact") place(mark("impact", `Impact${B === MOON ? " on the Moon" : ""} in ${fmtDur(leg.endT - sim.t, true)}`), at(leg, leg.endNu));
-      else if (leg.end === "escape") place(mark(cls, "Leaves Earth's influence"), at(leg, leg.endNu));
-      else if (leg.end === "soi") place(mark(cls, B === MOON ? "Leaves the Moon's influence" : `Moon encounter in ${fmtDur(leg.endT - sim.t, true)}`), at(leg, leg.endNu), true, B === MOON);
+      // events on the path (no burn): drawn as diamonds, where burns are round nodes
+      if (leg.end === "impact") place(mark("impact", `Impact${B === MOON ? " on the Moon" : ""} in ${fmtDur(leg.endT - sim.t, true)}`, `end:${k}`), at(leg, leg.endNu));
+      else if (leg.end === "escape") place(mark(cls + " ev", "Leaves Earth's influence", `end:${k}`), at(leg, leg.endNu));
+      else if (leg.end === "soi" || leg.end === "more") place(mark(cls + " ev", B === MOON ? "Leaves the Moon's influence" : `Moon encounter in ${fmtDur(leg.endT - sim.t, true)}`, leg.end === "soi" ? `soi:${k}` : `end:${k}`), at(leg, leg.endNu), true, B === MOON);
     });
     // the Moon, and where it will be when a planned path reaches it
     // label the Moon while it is small on screen; once it is big enough to see, the label would only cover it
@@ -3011,7 +3486,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       if (n.dead) { el.hidden = true; n.screen = null; return; }
       el.classList.toggle("sel", n === sim.sel);
       const s = place(el, toScene(n.pre.r).add(legBefore(n).origin));
-      el.querySelector(".tag").textContent = `${i + 1} · ${fmtDv(nodeDv(n))} · in ${fmtDur(n.t - sim.t, true)}`;
+      el.querySelector(".tag").textContent = `Burn ${i + 1} · ${fmtDv(nodeDv(n))} · in ${fmtDur(n.t - sim.t, true)}`;
       n.screen = s;
     });
     nodeEls.forEach((el, id) => { if (!seen.has(id)) { el.remove(); nodeEls.delete(id); } });
@@ -3163,7 +3638,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       const changedNow = dirty;
       dirty = false;
       const cur = draw();
-      if (changedNow || now - panelTick > 100) { panelTick = now; updateElements(cur); if (sim.nodes.length) refreshTabsLight(); }
+      if (changedNow || now - panelTick > 100) { panelTick = now; updateElements(cur); refreshTabsLight(); }
       renderer.render(scene, camera); renders++;
     }
     requestAnimationFrame(frame);
@@ -3171,10 +3646,11 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   function refreshTabsLight() {
     const n = sim.sel;
     if (n) $("nodeWhen").textContent = `${fmtDur(n.t - sim.t)}`;
+    tickItinerary();
   }
 
   // debug/test hook
-  window.__orbit = { sim, get traj() { return traj; }, MOON, EARTH, MOON_ORB, moonAt, geoState, planMoon, findEncounter, setFocus, get focus() { return focus; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
+  window.__orbit = { sim, get traj() { return traj; }, MOON, EARTH, MOON_ORB, moonAt, geoState, planMoon, planCircular, planReturn, get choice() { return choice; }, applyChoice, planLeg, findEncounter, setFocus, get focus() { return focus; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
 
   loadScenario("leo");
   let seen = null;
