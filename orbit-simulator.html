@@ -138,6 +138,7 @@ body {
   font-family: var(--font-data); font-size: 11px; letter-spacing: 0.03em;
   color: var(--accent-hi); text-shadow: 0 0 4px var(--sky), 0 0 2px var(--sky);
   display: flex; align-items: center; gap: 6px;
+  height: 0;     /* a zero-height row centres the pip (and text) on the point itself, not half a line below it */
 }
 .mark .pip { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; margin-left: -3.5px; }
 .mark.plan { color: var(--plan); }
@@ -217,7 +218,7 @@ h2 {
 /* the heading stays put; everything under it scrolls */
 #man, #elements { display: flex; flex-direction: column; overflow: hidden; }
 #man > header, #elements > header { flex: none; }
-.pbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.pbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 #elements {
   position: fixed; top: calc(env(safe-area-inset-top, 0px) + 16px); right: max(16px, env(safe-area-inset-right, 0px));
   width: 320px; box-sizing: border-box; max-height: calc(100% - 16px - var(--bar-space, 120px)); padding: 10px 0 6px;
@@ -254,11 +255,13 @@ select.field option { background: #0e121e; }
 #nodeTabs button[aria-pressed="true"] { background: var(--plan); border-color: var(--plan); color: var(--sky); }
 .when { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 8px; }
 .when .num { font-size: 12px; color: var(--plan); }
-.dv { display: grid; grid-template-columns: 1fr auto auto 76px auto auto; gap: 4px; align-items: center; margin: 3px 0; }
+/* the number box takes whatever width is left, so the row still fits when the panel shows a scrollbar */
+.dv { display: grid; grid-template-columns: 66px auto auto minmax(40px, 1fr) auto auto; gap: 3px; align-items: center; margin: 3px 0; }
 .dv label { font-size: 12px; display: flex; align-items: center; gap: 6px; }
 .dv label i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.dv input.field { width: 76px; }
-.dv button.btn { min-height: 26px; padding: 2px 6px; font: 500 11px var(--font-data); min-width: 30px; }
+.dv input.field { width: 100%; min-width: 0; padding: 5px; font-size: 11px; -moz-appearance: textfield; appearance: textfield; }
+.dv input.field::-webkit-inner-spin-button, .dv input.field::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }   /* the ±1 buttons do this */
+.dv button.btn { min-height: 26px; padding: 2px 4px; font: 500 11px var(--font-data); min-width: 26px; }
 .total { display: flex; justify-content: space-between; margin: 8px 0; font-size: 12px; }
 .total .num { color: var(--plan); }
 .plan-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; flex-wrap: wrap; }
@@ -2921,18 +2924,28 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   function layoutHandles(pts) {
     const ang = p => Math.atan2(p.y, p.x), gap = (a, b) => Math.abs(wrapPi(a - b));
     const pairs = ["pro", "nrm", "rad"].map(k => pts.filter(p => p.h.k === k));
-    const flat = pairs.filter(([a]) => Math.hypot(a.x, a.y) < 18), firm = pts.filter(p => !flat.some(f => f.includes(p)));
+    // a pair stays end-on until it is clearly side-on again, so it doesn't flicker between the two near the threshold
+    const flat = pairs.filter(([a]) => { const r = Math.hypot(a.x, a.y); a.h.flat = r < (a.h.flat ? 24 : 18); return a.h.flat; });
+    const firm = pts.filter(p => !flat.some(f => f.includes(p)));
     let taken = firm.map(ang);
     flat.forEach(pair => {
+      const [a, b] = pair;                           // a is the + handle (prograde, normal or radial out)
+      // the pair is symmetric, so only angles in [0, π) are distinct lines; score each by its clearance from the rest
+      const score = t => taken.length ? Math.min(...taken.map(u => Math.min(gap(t, u), gap(t + Math.PI, u)))) : 1;
       let best = 0, bestScore = -1;
-      for (let i = 0; i < 72; i++) {
-        const t = i / 72 * TAU;
-        const score = taken.length ? Math.min(...taken.map(a => Math.min(gap(t, a), gap(t + Math.PI, a)))) : 1;
-        if (score > bestScore) { bestScore = score; best = t; }
-      }
-      pair.forEach(p => { const t = best + (p.h.s > 0 ? 0 : Math.PI); p.x = Math.cos(t); p.y = Math.sin(t); });
+      for (let i = 0; i < 36; i++) { const t = i / 36 * Math.PI, sc = score(t); if (sc > bestScore) { bestScore = sc; best = t; } }
+      // keep last frame's line unless another is clearly better: near-equal scores would otherwise trade places every frame
+      const prev = a.h.flatAt;
+      if (prev != null && score(prev) > bestScore - 0.15) best = prev;
+      // and keep each handle on the same end of the line as last frame (or, when it first turns end-on, the end it points to)
+      const want = prev != null ? prev : Math.hypot(a.x, a.y) > 1 ? ang(a) : best;
+      if (gap(best, want) > Math.PI / 2) best += Math.PI;
+      best = wrapPi(best);
+      a.h.flatAt = best;
+      a.x = Math.cos(best); a.y = Math.sin(best); b.x = -a.x; b.y = -a.y;
       taken = taken.concat([best, best + Math.PI]);
     });
+    pairs.forEach(([a]) => { if (!a.h.flat) a.h.flatAt = null; });
     const keepOut = p => { const r = Math.hypot(p.x, p.y) || 1; if (r < H_MIN_R) { p.x *= H_MIN_R / r; p.y *= H_MIN_R / r; } };
     pts.forEach(keepOut);
     for (let it = 0; it < 12; it++) {
@@ -2952,6 +2965,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   }
   const tmpS = {};
   function draw() {
+    camera.updateMatrixWorld();     // project with where the camera is now, not where it was last frame
     camPos.copy(camera.position);
     markUsed = 0; placed = [];
     // orbit legs
