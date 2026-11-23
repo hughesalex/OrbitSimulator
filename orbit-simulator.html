@@ -154,6 +154,9 @@ body {
 .mark.body { color: #d8d3c8; }
 .mark.body .pip { background: none; border: 1.5px solid currentColor; width: 9px; height: 9px; margin-left: -6px; }
 .mark.ref .pip { display: none; }
+.mark.xn { color: #cfe0f5; }
+.mark.site { color: #ffd27a; }
+.mark.site .pip { width: 6px; height: 6px; margin-left: -3px; border-radius: 0; background: currentColor; transform: rotate(45deg); }
 .mark.impact { color: var(--warn); }
 .mark.impact .pip { background: none; width: 10px; height: 10px; margin-left: -5px; border-radius: 0;
   background: linear-gradient(45deg, transparent 42%, currentColor 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, currentColor 42% 58%, transparent 58%); }
@@ -375,6 +378,34 @@ select.field option { background: #0e121e; }
 #guide .k { color: var(--pro); } #guide .n { color: var(--nrm); } #guide .r { color: var(--rad); } #guide .o { color: var(--plan); } #guide .g { color: var(--accent-hi); }
 #guide footer { display: flex; justify-content: flex-end; margin-top: 14px; }
 
+/* launching from the ground: pick a site and where you're going, then a time */
+#launch {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9;
+  width: min(560px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow-y: auto; box-sizing: border-box; padding: 16px 18px 14px;
+  font-size: 13px; background: rgba(14, 18, 30, 0.985);
+}
+#launch h2 { font-size: 17px; color: var(--accent-hi); margin-bottom: 4px; }
+#launch .lrow { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: center; margin: 8px 0; }
+#launch .lrow > .caption { align-self: center; }
+#launch .lrow .in { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; min-width: 0; }
+#launch select.field { max-width: 100%; }
+#lSiteNote { font-size: 11px; color: var(--muted); }
+.wins { margin: 4px 0 8px; border: 1px solid var(--line); border-radius: 5px; max-height: 260px; overflow-y: auto; }
+.win, .wins .wh {
+  display: grid; grid-template-columns: minmax(0, 1.5fr) 0.7fr 0.9fr 0.8fr; column-gap: 8px; align-items: baseline;
+  width: 100%; box-sizing: border-box; padding: 6px 10px; text-align: left;
+}
+.wins .wh { position: sticky; top: 0; background: #121726; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding-top: 6px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.win { border: 0; border-left: 3px solid transparent; background: none; color: inherit; font: inherit; cursor: pointer; }
+.win + .win { border-top: 1px solid rgba(201, 164, 92, 0.12); }
+.win:hover { background: rgba(201, 164, 92, 0.08); }
+.win[aria-pressed="true"] { background: rgba(240, 164, 106, 0.14); border-left-color: var(--plan); }
+.win .w1 { font-size: 12px; } .win .w1 small { display: block; font-size: 11px; color: var(--muted); }
+.win .num { font-size: 12px; } .win .pen { color: var(--muted); }
+#launch footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+#launch footer label { margin-right: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+@media (max-width: 520px) { #launch .lrow { grid-template-columns: 1fr; gap: 4px; } .win, .wins .wh { column-gap: 5px; padding: 6px 7px; } }
+
 #webglError { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; color: var(--muted); }
 
 @media (max-width: 1100px) { #elements { width: 290px; } }
@@ -528,8 +559,10 @@ select.field option { background: #0e121e; }
       <option value="sub">Suborbital hop</option>
       <option value="esc">Escape trajectory</option>
       <option value="lunar">Low lunar orbit</option>
+      <option value="launch" hidden>Launched from the ground</option>
     </select>
     <button class="btn" id="restart" type="button" title="Start this scenario again">Restart</button>
+    <button class="btn" id="launchBtn" type="button" title="Launch from a real launch site, at a time that suits where you're going">Launch…</button>
   </div>
   <div class="group">
     <span class="caption">View</span>
@@ -548,6 +581,7 @@ select.field option { background: #0e121e; }
       <button class="btn" id="focusCraft" type="button" aria-pressed="false">Craft</button>
     </div>
     <button class="btn" id="eqBtn" type="button" aria-pressed="true" title="Show or hide the equatorial plane and the fixed reference direction">Equator</button>
+    <button class="btn" id="planeBtn" type="button" aria-pressed="false" title="Show your orbit's plane against the Moon's, and the line where they cross">Planes</button>
     <button class="btn" id="manBtn" type="button" aria-pressed="true" title="Show or hide the manoeuvre planner">Planner</button>
     <button class="btn" id="elBtn" type="button" aria-pressed="true" title="Show or hide the orbital elements">Elements</button>
     <button class="btn" id="guideBtn" type="button" title="How to use this simulator">Guide</button>
@@ -577,6 +611,9 @@ select.field option { background: #0e121e; }
   <p><b>Plan it for me</b> can put you in a circular orbit round whichever body the plan ends at, take you to the Moon and into orbit round it, or bring you home. Where there is more than one way, it lays them side by side with the fuel (Δv) and the time each takes, so you can see what a quicker trip costs. Click one to see it on the map, then <b>Keep this one</b>.</p>
   <h3>The Moon</h3>
   <p>The Moon circles Earth every 27.3 days, about 384,000 km out. Inside its <b>sphere of influence</b> (the dashed ring round it) its gravity takes over, and your path bends round it; outside, only Earth counts. This is the patched-conic method Kerbal Space Program uses. A planned path that reaches the Moon shows a faint <span class="g">Moon at encounter</span> where it will be when you arrive, and the part of your path round the Moon is drawn about it.</p>
+  <h3>Planes and launch windows</h3>
+  <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
+  <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan or Tanegashima. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
   <h3>Getting a better look</h3>
   <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow Moon</b> or <b>Craft</b> keeps it in the centre as it moves.</p>
   <h3>Things to try</h3>
@@ -587,11 +624,33 @@ select.field option { background: #0e121e; }
     <li><b>Fly to the Moon.</b> From the equatorial parking orbit, use <b>Transfer to the Moon</b>. The slow way takes about 3.1 km/s and a 5 day coast, then about 0.8 km/s to brake into orbit at the Moon. Compare the quicker transfers: they arrive faster, which makes braking dearer. Untick <b>stay in orbit</b> and the Moon flings you onto a new orbit round Earth instead: a gravity assist.</li>
     <li><b>Come home.</b> From the low lunar orbit, plan <b>Return to Earth</b>. Braking into orbit at Earth costs about 3 km/s more than the trip itself, which is why Apollo let the atmosphere do it.</li>
     <li><b>Waiting for a window.</b> Try the same from the ISS-like orbit. Its tilt differs from the Moon's, so the planner waits days until the Moon comes round to where your orbit's plane crosses its path.</li>
+    <li><b>Launch to the Moon.</b> Press <b>Launch…</b>, pick Baikonur and <b>The Moon</b>, and launch at the first time offered. Compare with the ISS-like start: the slow transfer now leaves within the hour instead of days later. Press <b>Planes</b> to see why: the line of nodes points to where the Moon will be.</li>
     <li><b>The Oberth effect.</b> Put 100 m/s prograde at periapsis of the Molniya orbit, then the same at apoapsis. Burning where you are fastest changes your orbital energy far more.</li>
   </ul>
   <h3>Keys</h3>
   <p><kbd>Space</kbd> pause · <kbd>,</kbd> <kbd>.</kbd> slower / faster warp · <kbd>W</kbd><kbd>S</kbd> prograde / retrograde · <kbd>Q</kbd><kbd>E</kbd> normal / anti-normal · <kbd>D</kbd><kbd>A</kbd> radial out / in · <kbd>Enter</kbd> execute node · <kbd>Delete</kbd> delete node · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo burn · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 3D / top-down / face-on view · <kbd>F</kbd> fit · drag to rotate, scroll to zoom.</p>
   <footer><button class="btn go" type="button" id="guideClose">Start flying</button></footer>
+</section>
+
+<section id="launch" class="plate" hidden aria-label="Launch from the ground">
+  <h2>Launch from the ground</h2>
+  <p class="hint">Say where you're going first, and you get the times to launch. You start in a circular parking orbit about ten minutes after lift-off: the climb itself isn't simulated.</p>
+  <div class="lrow"><label class="caption" for="lSite">Launch site</label>
+    <div class="in"><select class="field" id="lSite"></select><span id="lSiteNote"></span></div></div>
+  <div class="lrow"><label class="caption" for="lAlt">Parking orbit</label>
+    <div class="in"><input class="field" type="number" id="lAlt" value="200" step="10" min="150" max="2000" aria-label="Height of the parking orbit in km"><span class="caption">km up</span></div></div>
+  <div class="lrow"><span class="caption">Going to</span>
+    <div class="in"><div class="seg" role="group" aria-label="Destination">
+      <button class="btn" type="button" id="lToOrbit" aria-pressed="true">Earth orbit</button>
+      <button class="btn" type="button" id="lToMoon" aria-pressed="false">The Moon</button>
+    </div></div></div>
+  <p class="hint" id="lExplain"></p>
+  <div class="wins" id="lWins" role="group" aria-label="Launch times"></div>
+  <footer>
+    <label id="lPlanWrap"><input type="checkbox" id="lPlan" checked> then plan the transfer to the Moon</label>
+    <button class="btn" type="button" id="lCancel">Cancel</button>
+    <button class="btn go" type="button" id="lGo">Launch</button>
+  </footer>
 </section>
 
 <div id="webglError" hidden>This simulator needs WebGL, which this browser or device has turned off.</div>
@@ -1901,7 +1960,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
 
   // ---------- state ----------
   const sim = {
-    t: 0, playing: true, warpIdx: 5, orbit: null, spent: 0, nodes: [], sel: null, nextId: 1, ended: null,
+    t: 0, met0: 0, site: null, playing: true, warpIdx: 5, orbit: null, spent: 0, nodes: [], sel: null, nextId: 1, ended: null,
     thrust: { pro: 0, nrm: 0, rad: 0 }, acc: 5, scenario: "leo",
   };
   const WARPS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
@@ -2098,6 +2157,89 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     return l;
   })();
   scene.add(soiRing);
+
+  // ---------- your orbit's plane against the Moon's ----------
+  // Two faint discs through Earth's centre, one in the plane of your orbit and one in the Moon's, and the line where
+  // they cross (the line of nodes). A transfer to the Moon is cheap only when the Moon is near that line as you arrive,
+  // so the markers where the line meets the Moon's orbit show how long until the Moon gets there.
+  const planeGroup = new THREE.Group();
+  planeGroup.visible = false;
+  scene.add(planeGroup);
+  const PLANE_R = MOON_ORB.ra * 1.08 / KM;
+  const discOf = (color, opacity) => {
+    const g = new THREE.Group();
+    const fill = new THREE.Mesh(new THREE.CircleGeometry(PLANE_R, 160),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }));
+    const n = 256, a = new Float32Array((n + 1) * 3);
+    for (let k = 0; k <= n; k++) { const t = k / n * TAU; a.set([Math.cos(t) * PLANE_R, Math.sin(t) * PLANE_R, 0], k * 3); }
+    const rg = new THREE.BufferGeometry(); rg.setAttribute("position", new THREE.BufferAttribute(a, 3));
+    const rim = new THREE.Line(rg, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false }));
+    // spokes every 30°, so the tilt of the disc reads in 3D
+    const sp = [];
+    for (let k = 0; k < 12; k++) { const t = k / 12 * TAU; sp.push(Math.cos(t) * earthR * 1.05, Math.sin(t) * earthR * 1.05, 0, Math.cos(t) * PLANE_R, Math.sin(t) * PLANE_R, 0); }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(sp), 3));
+    const spokes = new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
+    g.add(fill, rim, spokes);
+    g.renderOrder = -1;
+    planeGroup.add(g);
+    return g;
+  };
+  const craftDisc = discOf(0xf0d49a, 0.06), moonDisc = discOf(0x9fb8dc, 0.07);
+  const Z_AXIS = new THREE.Vector3(0, 0, 1);
+  const alignDisc = (disc, W) => disc.quaternion.setFromUnitVectors(Z_AXIS, dirScene(W).normalize());
+  alignDisc(moonDisc, MOON_ORB.W);
+  const nodeLine = (() => {
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, dashSize: 3, gapSize: 2, depthWrite: false }));
+    l.frustumCulled = false; planeGroup.add(l); return l;
+  })();
+  // the angle between the planes, drawn as a wedge round the line of nodes, sized to the view
+  const ARC_N = 48;
+  const wedge = (() => {
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array((ARC_N + 3) * 3), 3));
+    const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
+    l.frustumCulled = false; planeGroup.add(l); return l;
+  })();
+  // angle between an Earth orbit's plane and the Moon's
+  const tiltToMoon = o => Math.acos(clamp(dot(o.W, MOON_ORB.W), -1, 1));
+  // Updates the planes for this frame and returns the labels to place: the wedge, and where the Moon crosses your plane.
+  function updatePlanes() {
+    const o = sim.orbit, mine = o.body === EARTH;
+    craftDisc.visible = mine;
+    const out = [];
+    const ang = mine ? tiltToMoon(o) : 0;
+    nodeLine.visible = wedge.visible = mine && ang > 0.1 * DEG && ang < 179.9 * DEG;
+    if (!mine) return out;
+    alignDisc(craftDisc, o.W);
+    if (!nodeLine.visible) { out.push({ text: "Your orbit lies in the Moon's plane", pos: toScene(mul(o.P, o.rp * 1.4)) }); return out; }
+    const n = unit(cross(o.W, MOON_ORB.W));          // along the line of nodes: where your plane crosses the Moon's
+    const p = nodeLine.geometry.attributes.position;
+    const a = toScene(mul(n, PLANE_R * KM)), b = toScene(mul(n, -PLANE_R * KM));
+    p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true;
+    nodeLine.computeLineDistances();
+    // the wedge: from your plane to the Moon's, square to the line of nodes, at a size that suits the zoom
+    const u1 = unit(cross(o.W, n)), u2 = unit(cross(MOON_ORB.W, n));
+    const R = clamp(camera.position.distanceTo(controls.target) * 0.16, earthR * 1.6, PLANE_R * 0.6) * KM;
+    const w = wedge.geometry.attributes.position, v = new THREE.Vector3();
+    toScene([0, 0, 0], v); w.setXYZ(0, v.x, v.y, v.z);
+    for (let k = 0; k <= ARC_N; k++) {
+      const f = k / ARC_N, s1 = Math.sin((1 - f) * ang) / Math.sin(ang), s2 = Math.sin(f * ang) / Math.sin(ang);
+      toScene(mul(add(mul(u1, s1), mul(u2, s2)), R), v); w.setXYZ(k + 1, v.x, v.y, v.z);
+    }
+    w.setXYZ(ARC_N + 2, 0, 0, 0); w.needsUpdate = true;
+    // name each disc partway out, square to the line of nodes, where the two are furthest apart
+    out.push({ text: "your orbit's plane", pos: toScene(mul(u1, PLANE_R * KM * 0.6)), minor: true });
+    out.push({ text: "the Moon's orbital plane", pos: toScene(mul(u2, PLANE_R * KM * 0.6)), minor: true });
+    const mid = unit(add(u1, u2));
+    out.push({ text: `Planes ${(ang / DEG).toFixed(1)}° apart`, pos: toScene(mul(mid, R * 1.08)), key: "tilt" });
+    // where the Moon's orbit crosses your plane, and when the Moon next gets there
+    [n, mul(n, -1)].forEach(d => {
+      const nu = Math.atan2(dot(d, MOON_ORB.Q), dot(d, MOON_ORB.P));
+      out.push({ text: `Moon crosses your plane in ${fmtDur(timeToNu(MOON_ORB, sim.t, nu), true)}`, pos: toScene(stateAtNu(MOON_ORB, nu).r), key: "tilt", node: true });
+    });
+    return out;
+  }
+
   const moonPos = new THREE.Vector3();
   function placeMoon() {
     moonPos.copy(moonScene(sim.t));
@@ -2261,6 +2403,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       x: "The tilt of the orbit's plane against the equator. <b>0°</b> follows the equator, <b>90°</b> passes over the poles, over 90° goes round backwards (retrograde). Change it with a <b>normal</b> or <b>anti-normal</b> burn at the ascending or descending node. It is costly: 1° at low orbit takes about 135 m/s, which is why launch sites near the equator are prized." },
     { k: "raan", name: "Ascending node", mark: "an", f: o => o.equatorial ? "—" : fmtDeg(o.raan),
       x: "Longitude of the ascending node: where the orbit crosses the equator heading north (<b>AN</b>), measured eastward from the fixed reference direction (the gold line marked ♈︎, toward the March equinox point among the stars). With inclination it fixes the orbit's plane in space. An orbit lying exactly in the equator has no ascending node, shown as —." },
+    { k: "tilt", name: "Tilt to Moon's orbit", mark: "tilt", f: o => o.body === MOON ? "—" : fmtDeg(tiltToMoon(o)),
+      x: "The angle between the plane of your orbit and the plane of the Moon's orbit. The two planes cross along a line through Earth, the <b>line of nodes</b>. A cheap transfer to the Moon stays in your plane, so it can only meet the Moon where the Moon's path crosses that plane: the Moon has to be near the line of nodes when you arrive. It passes each end once a month, about every 13.7 days, which is why a transfer can mean waiting days in orbit. Press <b>Planes</b> to see them. Launching at the right moment, as <b>Launch</b> does, puts the Moon in your plane from the start. (The Moon's tilt to the equator drifts between about 18° and 28.5° over 18.6 years; here it is fixed at 28.5°.)" },
     { k: "w", name: "Arg. of periapsis", mark: "pe", f: o => isNaN(o.argp) ? "—" : fmtDeg(o.argp),
       x: "The angle, within the orbit's plane, from the ascending node round to periapsis: which way the ellipse points. Molniya orbits use 270° so their slow, high apoapsis hangs over the northern hemisphere. For an equatorial orbit this shows the longitude of periapsis instead; a perfectly circular orbit has no periapsis, shown as —." },
     { g: "Where you are", now: true },
@@ -2499,6 +2643,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     const s = stateAt(sim.orbit, sim.t), f = burnFrame(s);
     burn(add(add(mul(f.pro, n.pro / 1000), mul(f.nrm, n.nrm / 1000)), mul(f.rad, n.rad / 1000)));
     deleteNode(n);
+    if (sim.warpBack != null) setWarp(sim.warpBack);   // back to the warp from before the stop at the node
     if (!sim.ended) setPlaying(true);   // carry on flying after the burn
     toast(`Burn complete: ${fmtDv(nodeDv(n))}. Undo burn puts it back on the plan.`);
   }
@@ -3157,7 +3302,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   const playBtn = $("play"), warpIn = $("warp"), warpLabel = $("warpLabel");
   function setPlaying(p) { wake(); sim.playing = p; playBtn.textContent = p ? "Pause" : "Play"; }
   playBtn.addEventListener("click", () => { if (!sim.ended) setPlaying(!sim.playing); });
-  function setWarp(i) { sim.warpIdx = clamp(i, 0, WARPS.length - 1); warpIn.value = sim.warpIdx; }
+  // choosing a warp by hand cancels any warp waiting to come back after a burn
+  function setWarp(i) { sim.warpIdx = clamp(i, 0, WARPS.length - 1); warpIn.value = sim.warpIdx; sim.warpBack = null; }
   warpIn.addEventListener("input", () => setWarp(+warpIn.value));
   // the camera looks at Earth, the Moon or the craft, and keeps up with it as it moves
   let focus = "earth";
@@ -3227,6 +3373,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   $("undo").addEventListener("click", undo);
   const toggle = (btnId, apply) => { const b = $(btnId); b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(on)); apply(on); }); };
   toggle("eqBtn", on => { eqGroup.visible = on; });
+  toggle("planeBtn", on => { planeGroup.visible = on; });
+  function showPlanes(on) { planeGroup.visible = on; $("planeBtn").setAttribute("aria-pressed", String(on)); wake(); }
   const narrow = () => window.innerWidth <= 860;
   toggle("manBtn", on => { $("man").hidden = !on; if (on && narrow()) { $("elements").hidden = true; $("elBtn").setAttribute("aria-pressed", "false"); } });
   toggle("elBtn", on => { $("elements").hidden = !on; if (on && narrow()) { $("man").hidden = true; $("manBtn").setAttribute("aria-pressed", "false"); } });
@@ -3234,14 +3382,15 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   const guide = $("guide");
   $("guideBtn").addEventListener("click", () => { guide.hidden = !guide.hidden; });
   $("guideClose").addEventListener("click", () => { guide.hidden = true; try { localStorage.setItem("orbitsim.guideSeen", "1"); } catch (e) {} });
-  $("restart").addEventListener("click", () => loadScenario($("scenario").value));
+  $("restart").addEventListener("click", () => { if ($("scenario").value === "launch" && lastLaunch) launch(lastLaunch); else loadScenario($("scenario").value); });
   $("scenario").addEventListener("change", e => loadScenario(e.target.value));
 
-  function loadScenario(key) {
-    const sc = SCENARIOS[key]; sim.scenario = key;
-    const s = sc.s();
-    sim.t = 0; sim.spent = 0; sim.ended = null;
-    sim.orbit = orbitFromState(s.r, s.v, 0, sc.body || EARTH);
+  function loadScenario(key) { const sc = SCENARIOS[key]; begin(sc, key, sc.s(), 0, 0); }
+  // start flying from a state at time t0; the mission clock reads zero at met0
+  function begin(sc, key, s, t0, met0) {
+    sim.scenario = key; $("scenario").value = key;
+    sim.t = t0; sim.met0 = met0; sim.site = sc.site || null; sim.spent = 0; sim.ended = null;
+    sim.orbit = orbitFromState(s.r, s.v, t0, sc.body || EARTH);
     closeChoice(); inspect = null;
     clearNodeEls(); sim.nodes = []; sim.sel = null;
     history.length = 0; handBurn = null; syncUndo();
@@ -3253,6 +3402,158 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     camera.position.copy(viewDir("3d").multiplyScalar(sc.cam * Math.max(1, 0.8 / (f.w / f.h)) * Math.min(1.8, H / f.h)).add(p));
     toast(sc.note, 7000);
   }
+
+  // ---------- launching from the ground ----------
+  // The site turns with Earth, once a sidereal day. Launching puts the craft into a circular parking orbit whose plane
+  // holds the site at lift-off; heading due east gives the least tilt (equal to the site's latitude) and the most help
+  // from Earth's spin. To reach the Moon cheaply the Moon must lie in that plane when you arrive, so the launch times
+  // offered are the moments, about twice a day, when the plane through the site and the Moon's future position is
+  // tilted least.
+  const OMEGA_E = TAU / SIDEREAL;
+  const SUN_I = unit([sunDir.x, -sunDir.z, sunDir.y]);        // the Sun's direction, in Earth's frame
+  function siteAt(site, t) {
+    const th = site.lon * DEG + t * OMEGA_E, ph = site.lat * DEG;
+    return { th, r: [Math.cos(ph) * Math.cos(th), Math.cos(ph) * Math.sin(th), Math.sin(ph)],
+      east: [-Math.sin(th), Math.cos(th), 0], north: [-Math.sin(ph) * Math.cos(th), -Math.sin(ph) * Math.sin(th), Math.cos(ph)] };
+  }
+  const headingOf = (W, st) => { const v = cross(W, st.r); return wrap(Math.atan2(dot(v, st.east), dot(v, st.north))); };
+  const planeOf = (st, az) => unit(cross(st.r, add(mul(st.north, Math.cos(az)), mul(st.east, Math.sin(az)))));
+  // extra Δv to orbit compared with launching due east: Earth's spin helps less the further from east you head
+  function tiltCost(site, alt, az) {
+    const vc = Math.sqrt(MU / (RE + alt)), u = OMEGA_E * RE * Math.cos(site.lat * DEG);
+    return (Math.sqrt(vc * vc + u * u - 2 * vc * u * Math.sin(az)) - (vc - u)) * 1000;
+  }
+  const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const compass = az => COMPASS[Math.round(az / DEG / 22.5) % 16];
+  function localTime(st) {
+    const h = (12 + wrapPi(st.th - Math.atan2(SUN_I[1], SUN_I[0])) / TAU * 24 + 24) % 24;
+    return `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor(h % 1 * 60)).padStart(2, "0")} local, ${dot(st.r, SUN_I) > 0 ? "daylight" : "night"}`;
+  }
+  // Lift-off at tL puts the craft in orbit 15° downrange ten minutes later (see launch below).
+  const INSERT_DT = 600, INSERT_ANG = 15 * DEG;
+  const insertDir = (st, W) => add(mul(st.r, Math.cos(INSERT_ANG)), mul(cross(W, st.r), Math.sin(INSERT_ANG)));
+  // The plane to launch into at tL for the slow, cheap transfer to the Moon (the one the planner tries first): the
+  // least-tilted plane through the site that holds the Moon where it will be on arrival. The craft coasts round the
+  // parking orbit to the point opposite that spot, then half an ellipse takes it out to the Moon's distance, about
+  // 5 days, so the plane and the arrival time are worked out together, a few rounds each. Quicker transfers arrive
+  // sooner, when the Moon is somewhere else, so they need launch times of their own unless the parking orbit lies in
+  // the Moon's plane.
+  function moonPlaneAt(site, alt, tL) {
+    const st = siteAt(site, tL), r1 = RE + alt, n = Math.sqrt(MU / r1 ** 3);
+    let tArr = tL + INSERT_DT + 2700 + Math.PI * Math.sqrt(((r1 + MOON_ORB.a) / 2) ** 3 / MU), W = null;
+    for (let it = 0; it < 4; it++) {
+      const m = moonAt(tArr).r, mh = unit(m);
+      W = unit(cross(st.r, mh));
+      if (W[2] < 0) W = mul(W, -1);                    // the prograde one: heading east of north or south
+      const ins = insertDir(st, W), burnDir = mul(mh, -1);
+      const coast = wrap(Math.atan2(dot(cross(ins, burnDir), W), dot(ins, burnDir))) / n;
+      const at = (r1 + len(m)) / 2;
+      tArr = tL + INSERT_DT + coast + Math.PI * Math.sqrt(at ** 3 / MU);
+    }
+    return { t: tL, st, W, i: Math.acos(clamp(W[2], -1, 1)), trip: tArr - tL };
+  }
+  // Times in the next few days to launch toward the Moon. The tilt of that plane dips twice a day, as Earth turns
+  // the site past the Moon's side; each dip is a launch window.
+  function moonWindows(site, alt, tFrom, days) {
+    const at = t => moonPlaneAt(site, alt, t);
+    const step = 600, out = [];
+    let a = at(tFrom + 300), b = at(tFrom + 300 + step);
+    for (let t = tFrom + 300 + 2 * step; t < tFrom + days * 86400; t += step) {
+      const c = at(t);
+      if (b.i <= a.i && b.i < c.i) {                   // a dip: pin it down
+        let lo = b.t - step, hi = b.t + step;
+        for (let k = 0; k < 30; k++) { const m1 = lo + (hi - lo) * 0.382, m2 = lo + (hi - lo) * 0.618; if (at(m1).i < at(m2).i) hi = m2; else lo = m1; }
+        const w = at(Math.max(tFrom + 300, (lo + hi) / 2));
+        if (w.i < 80 * DEG) out.push(w);
+      }
+      a = b; b = c;
+    }
+    return out.map(w => ({ ...w, az: headingOf(w.W, w.st), moon: true }));
+  }
+  function orbitOptions(site, tNow) {
+    const st = siteAt(site, tNow), lat = Math.abs(site.lat), opts = [{ name: `due east: the least tilt, ${lat.toFixed(1)}°`, az: 90 * DEG }];
+    [[51.6, "like the ISS"], [90, "polar, over both poles"]].forEach(([i, what]) => {
+      if (i > lat + 1) opts.push({ name: `${i}°, ${what}`, az: Math.asin(clamp(Math.cos(i * DEG) / Math.cos(site.lat * DEG), -1, 1)) });
+    });
+    return opts.map(o => { const W = planeOf(st, o.az); return { ...o, t: tNow, st, W, i: Math.acos(clamp(W[2], -1, 1)) }; });
+  }
+  const SITES = [
+    { name: "Cape Canaveral", where: "Florida, USA", lat: 28.47, lon: -80.56 },
+    { name: "Baikonur", where: "Kazakhstan", lat: 45.92, lon: 63.34 },
+    { name: "Kourou", where: "French Guiana", lat: 5.24, lon: -52.77 },
+    { name: "Vostochny", where: "Amur Oblast, Russia", lat: 51.88, lon: 128.33 },
+    { name: "Wenchang", where: "Hainan, China", lat: 19.61, lon: 110.95 },
+    { name: "Jiuquan", where: "Inner Mongolia, China", lat: 40.96, lon: 100.29 },
+    { name: "Tanegashima", where: "Kagoshima, Japan", lat: 30.40, lon: 130.97 },
+  ];
+  const launchEl = $("launch"), lSite = $("lSite"), lWins = $("lWins");
+  SITES.forEach((st, k) => { const o = document.createElement("option"); o.value = k; o.textContent = `${st.name}, ${st.where}`; lSite.appendChild(o); });
+  const L = { dest: "orbit", tNow: 0, opts: [], idx: 0, wasPlaying: true };
+  let lastLaunch = null;
+  const lSiteSel = () => SITES[+lSite.value];
+  function renderLaunch() {
+    const site = lSiteSel(), alt = clamp(parseFloat($("lAlt").value) || 200, 150, 2000), moon = L.dest === "moon";
+    $("lSiteNote").textContent = `${Math.abs(site.lat).toFixed(1)}° ${site.lat >= 0 ? "N" : "S"} · least tilt ${Math.abs(site.lat).toFixed(1)}°`;
+    $("lToOrbit").setAttribute("aria-pressed", String(!moon)); $("lToMoon").setAttribute("aria-pressed", String(moon));
+    $("lPlanWrap").hidden = !moon;
+    $("lExplain").innerHTML = moon
+      ? `Earth's spin swings ${site.name} through a plane that holds the Moon about twice a day. Launch at one of these times and the Moon will be in your orbit's plane when the slow, cheap transfer arrives, about 5 days later, so it can leave within an orbit instead of waiting days. Quicker transfers arrive when the Moon is elsewhere, so they may still wait.`
+      : `Heading due east, Earth's spin adds ${nf0.format(OMEGA_E * RE * Math.cos(site.lat * DEG) * 1000)} m/s here, and the orbit is tilted by the site's latitude: no launch from ${site.name} can go lower without a costly turn. Any other tilt is a different heading, and costs more.`;
+    L.opts = moon ? moonWindows(site, alt, L.tNow, 7) : orbitOptions(site, L.tNow);
+    L.idx = clamp(L.idx, 0, Math.max(0, L.opts.length - 1));
+    lWins.innerHTML = '<div class="wh"><span>Lift-off</span><span>Tilt</span><span>Heading</span><span title="Extra Δv to reach orbit compared with launching due east, because less of Earth\'s spin helps">Extra Δv</span></div>';
+    L.opts.forEach((o, k) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "win"; b.setAttribute("aria-pressed", String(k === L.idx));
+      const cost = tiltCost(site, alt, o.az);
+      b.innerHTML = `<span class="w1"><span></span><small></small></span><span class="num"></span><span class="num"></span><span class="num pen"></span>`;
+      b.children[0].children[0].textContent = moon ? `in ${fmtDur(o.t - L.tNow, true)}` : "Now";
+      b.children[0].children[1].textContent = moon ? localTime(o.st) : o.name;
+      b.children[1].textContent = `${(o.i / DEG).toFixed(1)}°`;
+      b.children[2].textContent = `${(o.az / DEG).toFixed(0)}° ${compass(o.az)}`;
+      b.children[3].textContent = cost < 5 ? "—" : `+${nf0.format(cost)} m/s`;
+      b.addEventListener("click", () => { L.idx = k; [...lWins.querySelectorAll(".win")].forEach((x, j) => x.setAttribute("aria-pressed", String(j === k))); wake(); });
+      b.addEventListener("dblclick", go);
+      lWins.appendChild(b);
+    });
+    if (!L.opts.length) lWins.insertAdjacentHTML("beforeend", '<p class="hint" style="padding:0 10px">No launch times in the next week.</p>');
+    $("lGo").disabled = !L.opts.length;
+    wake();
+  }
+  function openLaunch() {
+    guide.hidden = true;
+    L.tNow = sim.t; L.idx = 0; L.wasPlaying = sim.playing;
+    setPlaying(false);
+    launchEl.hidden = false; renderLaunch();
+    lSite.focus();
+  }
+  function closeLaunch() { launchEl.hidden = true; if (L.wasPlaying && !sim.ended) setPlaying(true); wake(); }
+  function go() {
+    const o = L.opts[L.idx]; if (!o) return;
+    launchEl.hidden = true;
+    launch({ site: lSiteSel(), alt: clamp(parseFloat($("lAlt").value) || 200, 150, 2000), W: o.W, t: o.t, az: o.az, moon: L.dest === "moon", plan: $("lPlan").checked });
+  }
+  // Lift off at time t into the plane W; about ten minutes and 1,700 km downrange later the craft is in orbit.
+  function launch(p) {
+    lastLaunch = p;
+    const st = siteAt(p.site, p.t), rp = RE + p.alt, rh = insertDir(st, p.W);
+    const s = { r: mul(rh, rp), v: mul(unit(cross(p.W, rh)), Math.sqrt(MU / rp)) };
+    $("scenario").querySelector('option[value="launch"]').textContent = `Launched from ${p.site.name}`;
+    const i = Math.acos(clamp(p.W[2], -1, 1)) / DEG;
+    begin({ site: p.site, cam: 34, warp: 5, note: `Lift-off from ${p.site.name}, heading ${(p.az / DEG).toFixed(0)}° ${compass(p.az)}. Ten minutes later you're in a ${fmtKm(p.alt)} parking orbit tilted ${i.toFixed(1)}°.` },
+      "launch", s, p.t + INSERT_DT, p.t);
+    if (p.moon) {
+      showPlanes(true);
+      if (p.plan) planMoon();
+    }
+  }
+  $("launchBtn").addEventListener("click", () => launchEl.hidden ? openLaunch() : closeLaunch());
+  $("lCancel").addEventListener("click", closeLaunch);
+  $("lGo").addEventListener("click", go);
+  lSite.addEventListener("change", () => { L.idx = 0; renderLaunch(); });
+  $("lAlt").addEventListener("change", renderLaunch);
+  $("lAlt").addEventListener("keydown", e => e.stopPropagation());
+  $("lToOrbit").addEventListener("click", () => { L.dest = "orbit"; L.idx = 0; renderLaunch(); });
+  $("lToMoon").addEventListener("click", () => { L.dest = "moon"; L.idx = 0; renderLaunch(); });
 
   // keyboard
   const KEYS = { w: "pro:1", s: "pro:-1", q: "nrm:1", e: "nrm:-1", d: "rad:1", a: "rad:-1" };
@@ -3271,7 +3572,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     else if (e.key === "." || e.key === ">") setWarp(sim.warpIdx + 1);
     else if (e.key === "Enter" && sim.sel && !(e.target.closest && e.target.closest("button"))) execute(sim.sel);
     else if ((e.key === "Delete" || e.key === "Backspace") && sim.sel) deleteNode(sim.sel);
-    else if (e.key === "Escape") { guide.hidden = true; }
+    else if (e.key === "Escape") { guide.hidden = true; if (!launchEl.hidden) closeLaunch(); }
   });
   window.addEventListener("keyup", e => { const k = KEYS[e.key.toLowerCase()]; if (k) { held.delete(k); setThrust(); } });
   window.addEventListener("blur", () => { held.clear(); setThrust(); });
@@ -3315,7 +3616,9 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       sim.t = tEnd;
     }
     if (stopAt && !sim.ended) {
-      setPlaying(false); setWarp(Math.min(sim.warpIdx, 5));
+      // slow down to look at the node, but remember the warp so it comes back once the burn has fired
+      setPlaying(false);
+      if (sim.warpIdx > 5) { const w = sim.warpIdx; setWarp(5); sim.warpBack = w; }
       sim.sel = stopAt; refreshPanel();
       toast(`Reached node ${nodeIndex(stopAt)}. Press Execute to fire the ${fmtDv(nodeDv(stopAt))} burn, or move or delete it.`, 8000);
     }
@@ -3472,6 +3775,13 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     const ghostLeg = traj.find(l => l.body === MOON && l.refT > sim.t + 1);
     moonGhost.visible = !!ghostLeg;
     if (ghostLeg) { moonGhost.position.copy(ghostLeg.origin); place(mark("ref", "Moon at encounter"), ghostLeg.origin, false, true); }
+    // your orbit's plane against the Moon's
+    if (planeGroup.visible) updatePlanes().forEach(l => place(mark(l.node ? "ev xn" : "ref xn", l.text, l.key), l.pos, l.node, !!l.minor));
+    // the launch site being chosen, or the one you launched from, turning with Earth
+    const site = !launchEl.hidden ? lSiteSel() : sim.site;
+    // (only once Earth is big enough on screen for the label not to crowd the middle of the view)
+    const earthPx = earthR / Math.max(1e-6, camPos.length()) / Math.tan(camera.fov * DEG / 2) * H / 2;
+    if (site && (earthPx > 60 || !launchEl.hidden)) place(mark("site", site.name), toScene(mul(siteAt(site, sim.t).r, RE * 1.004)));
     // the reference direction
     if (eqGroup.visible) place(mark("ref", "♈︎ reference direction"), new THREE.Vector3(14.3, 0, 0), false);
     // the craft
@@ -3518,7 +3828,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     canvas.style.cursor = hover && !drag ? "pointer" : "";
 
     // readouts
-    $("met").textContent = fmtMet(sim.t);
+    $("met").textContent = fmtMet(sim.t - sim.met0);
     $("roAltLbl").textContent = sim.orbit.body === MOON ? "Above the Moon" : "Altitude";
     $("roAlt").textContent = fmtKm(len(cur.r) - sim.orbit.body.R);
     $("roSpeed").textContent = fmtSpeed(len(cur.v));
@@ -3650,7 +3960,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   }
 
   // debug/test hook
-  window.__orbit = { sim, get traj() { return traj; }, MOON, EARTH, MOON_ORB, moonAt, geoState, planMoon, planCircular, planReturn, get choice() { return choice; }, applyChoice, planLeg, findEncounter, setFocus, get focus() { return focus; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
+  window.__orbit = { sim, evalMoonShot, moonWindows, launch, SITES, moonShot, get planeShown() { return planeGroup.visible; }, get traj() { return traj; }, MOON, EARTH, MOON_ORB, moonAt, geoState, planMoon, planCircular, planReturn, get choice() { return choice; }, applyChoice, planLeg, findEncounter, setFocus, get focus() { return focus; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
 
   loadScenario("leo");
   let seen = null;
