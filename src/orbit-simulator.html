@@ -59,6 +59,8 @@ body {
 .mark.ref { color: var(--accent); opacity: 0.7; }
 .mark.body { color: #d8d3c8; }
 .mark.body .pip { background: none; border: 1.5px solid currentColor; width: 9px; height: 9px; margin-left: -6px; }
+.mark.body { pointer-events: auto; cursor: pointer; }
+.mark.body:hover { color: #fff; }
 .mark.ref .pip { display: none; }
 .mark.xn { color: #cfe0f5; }
 .mark.site { color: #ffd27a; }
@@ -123,8 +125,8 @@ h2 {
 #readout dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; text-align: right; }
 
 #man {
-  position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 162px);
-  width: 300px; box-sizing: border-box; max-height: calc(100% - 162px - var(--bar-space, 120px)); padding: 10px 0 8px;
+  position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 180px);
+  width: 300px; box-sizing: border-box; max-height: calc(100% - 180px - var(--bar-space, 120px)); padding: 10px 0 8px;
 }
 /* the heading stays put; everything under it scrolls */
 #man, #elements { display: flex; flex-direction: column; overflow: hidden; }
@@ -215,6 +217,13 @@ select.field option { background: #0e121e; }
 .opt .bar.tm i:first-child { border-radius: 3px 0 0 3px; } .opt .bar.tm i:last-child { border-radius: 0 3px 3px 0; }
 .opt .v { font: 11px var(--font-data); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .opt .sub { grid-column: 1 / 4; font-size: 11px; color: var(--muted); line-height: 1.4; }
+#choiceWhyBox { margin: 0 0 8px; font-size: 12px; line-height: 1.5; color: #c9c4b6; }
+#choiceWhyBox summary { cursor: pointer; color: var(--accent-hi); font-size: 12px; }
+#choiceWhyBox p { margin: 6px 0; }
+#choiceWhyBox b { color: var(--accent-hi); font-weight: 500; }
+#pork { margin: 0 0 8px; }
+#porkCv { display: block; width: 100%; height: 150px; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: manipulation; }
+.pk-axes { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; color: var(--muted); margin-top: 3px; }
 .plan-row label.chk { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 .when { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 8px; }
 .when .num { font-size: 12px; color: var(--plan); }
@@ -341,6 +350,7 @@ select.field option { background: #0e121e; }
   <h1>Orbit Simulator</h1>
   <div id="met">T+ 0d 00:00:00</div>
   <dl id="readout">
+    <dt>Date</dt><dd id="roDate">—</dd>
     <dt id="roAltLbl">Altitude</dt><dd id="roAlt">—</dd>
     <dt>Speed</dt><dd id="roSpeed">—</dd>
     <dt>Δv spent</dt><dd id="roSpent">0 m/s</dd>
@@ -352,6 +362,11 @@ select.field option { background: #0e121e; }
   <div class="sect" id="nodeSect">
     <div id="choice" hidden>
       <div class="ch-head"><span id="choiceTitle">Ways to do it</span><button class="btn small" type="button" id="choiceKeep" title="Keep the plan shown and close this comparison">Keep this one</button></div>
+      <details id="choiceWhyBox" hidden><summary>Why these ways?</summary><div id="choiceWhy"></div></details>
+      <div id="pork" hidden>
+        <canvas id="porkCv" aria-label="Porkchop plot: fuel needed for each departure date and trip time. Click to plan that transfer."></canvas>
+        <div class="pk-axes"><span id="pkX"></span><span id="pkScale"></span></div>
+      </div>
       <div id="choiceList"></div>
     </div>
     <div id="itinWrap" hidden>
@@ -405,15 +420,15 @@ select.field option { background: #0e121e; }
       <input class="field" type="number" id="hohAlt" value="35786" step="100" min="100" aria-label="Target altitude in km"><span class="caption">km</span>
       <button class="btn small" type="button" id="hohPlan">Plan</button></div>
     <div class="plan-row"><span class="lbl">Change inclination to</span>
-      <input class="field" type="number" id="incTarget" value="0" step="1" min="0" max="180" aria-label="Target inclination in degrees"><span class="caption">deg</span>
+      <select class="field" id="incMode" aria-label="What to tilt the orbit to"></select>
+      <input class="field" type="number" id="incTarget" value="0" step="1" min="0" max="180" aria-label="Target inclination in degrees"><span class="caption" id="incDeg">deg</span>
       <button class="btn small" type="button" id="incPlan">Plan</button></div>
-    <div class="plan-row"><span class="lbl">Transfer to the Moon, passing it at</span>
-      <input class="field" type="number" id="moonPe" value="100" step="10" min="10" max="20000" aria-label="Height to pass the Moon at, in km"><span class="caption">km</span>
-      <button class="btn small" type="button" id="moonPlan" title="Find the next launch windows to the Moon and compare slow, cheap transfers with quick ones">Plan</button>
-      <label class="chk"><input type="checkbox" id="moonStay" checked> and stay in orbit round it</label></div>
-    <div class="plan-row"><span class="lbl">Return to Earth, ending in a circular orbit at</span>
-      <input class="field" type="number" id="retAlt" value="300" step="50" min="150" max="5000" aria-label="Height of the orbit to return to, in km"><span class="caption">km</span>
-      <button class="btn small" type="button" id="retPlan" title="Plan the burns home from wherever the plan ends, including leaving the Moon">Plan</button></div>
+    <div class="plan-row"><span class="lbl">Transfer to</span>
+      <select class="field" id="xferTarget" aria-label="Body to transfer to"></select>
+      <span class="caption" id="xferPassLbl">passing at</span>
+      <input class="field" type="number" id="xferAlt" value="100" step="10" min="1" aria-label="Height to pass the target at, in km"><span class="caption">km</span>
+      <button class="btn small" type="button" id="xferPlan" title="Compare the ways to get there from where the plan ends: when to leave, how much fuel, how long">Plan</button>
+      <label class="chk"><input type="checkbox" id="xferStay" checked> <span id="xferStayLbl">and stay in orbit round it</span></label></div>
     <div class="plan-row"><button class="btn small" type="button" id="clearNodes">Delete all nodes</button></div>
   </div>
   <div class="sect">
@@ -440,7 +455,7 @@ select.field option { background: #0e121e; }
   <header><h2>Orbit</h2><span>Tap a row to learn more</span></header>
   <div class="cols" id="colHeads"><span></span><span>Now</span><span id="afterHead" hidden>After burns</span></div>
   <div id="rows"></div>
-  <footer>Real gravity and sizes for Earth (μ = 398,600 km³/s²) and the Moon (μ = 4,903 km³/s²), using patched conics as in Kerbal Space Program: inside the Moon's sphere of influence (66,100 km) only the Moon pulls on you, outside it only Earth. Altitudes are above the surface of the body you orbit. The atmosphere, the Sun's pull and Earth's slight bulge are left out, and burns are instant, as in a manoeuvre-node plan. Earth and Moon maps: Solar System Scope, CC BY 4.0.</footer>
+  <footer>Real gravity, sizes and orbits for the Sun, the eight planets and nineteen of their major moons, using patched conics as in Kerbal Space Program: inside a body's sphere of influence only that body pulls on you (inside the Moon's, 66,100 km, only the Moon), outside it only its parent. Planet positions come from JPL's mean orbital elements. Altitudes are above the surface of the body you orbit. Atmospheres, the bulge of spinning planets and the slow turning of the orbits are left out, and burns are instant, as in a manoeuvre-node plan. Planet and moon maps: Solar System Scope, CC BY 4.0.</footer>
 </aside>
 
 <div id="controls" class="plate" role="toolbar" aria-label="Simulation controls">
@@ -450,7 +465,7 @@ select.field option { background: #0e121e; }
   </div>
   <div class="group warp">
     <label class="caption" for="warp">Warp</label>
-    <input type="range" id="warp" min="0" max="15" step="1" value="5">
+    <input type="range" id="warp" min="0" max="21" step="1" value="5">
     <span id="warpLabel">—</span>
   </div>
   <div class="group">
@@ -465,6 +480,8 @@ select.field option { background: #0e121e; }
       <option value="sub">Suborbital hop</option>
       <option value="esc">Escape trajectory</option>
       <option value="lunar">Low lunar orbit</option>
+      <option value="mars">Low Mars orbit</option>
+      <option value="ganymede">Orbit round Ganymede</option>
       <option value="launch" hidden>Launched from the ground</option>
     </select>
     <button class="btn" id="restart" type="button" title="Start this scenario again">Restart</button>
@@ -480,12 +497,8 @@ select.field option { background: #0e121e; }
     <button class="btn" id="fit" type="button" title="Centre on Earth and zoom to fit the whole orbit and plan">Fit</button>
   </div>
   <div class="group">
-    <span class="caption">Follow</span>
-    <div class="seg" role="group" aria-label="Camera follows">
-      <button class="btn" id="focusEarth" type="button" aria-pressed="true">Earth</button>
-      <button class="btn" id="focusMoon" type="button" aria-pressed="false">Moon</button>
-      <button class="btn" id="focusCraft" type="button" aria-pressed="false">Craft</button>
-    </div>
+    <label class="caption" for="follow">Follow</label>
+    <select class="field" id="follow" title="Keep a body, or your craft, in the centre of the view. You can also click a body's name on the map."></select>
     <button class="btn" id="eqBtn" type="button" aria-pressed="true" title="Show or hide the equatorial plane and the fixed reference direction">Equator</button>
     <button class="btn" id="planeBtn" type="button" aria-pressed="false" title="Show your orbit's plane against the Moon's, and the line where they cross">Planes</button>
     <button class="btn" id="manBtn" type="button" aria-pressed="true" title="Show or hide the manoeuvre planner">Planner</button>
@@ -498,7 +511,7 @@ select.field option { background: #0e121e; }
 
 <section id="guide" class="plate" hidden aria-label="Guide">
   <h2>Orbit Simulator</h2>
-  <p>You are flying a spacecraft around Earth. Nothing pushes it except Earth's gravity, so it falls around the planet on a fixed path: an ellipse (or, if it is going fast enough, an escape path that never returns). The only way to change that path is to fire the engine, and the direction you fire in matters as much as how hard.</p>
+  <p>You are flying a spacecraft around Earth (or, from the Start menu, round the Moon, Mars or Ganymede). Nothing pushes it except gravity, so it falls around the planet on a fixed path: an ellipse (or, if it is going fast enough, an escape path that never returns). The only way to change that path is to fire the engine, and the direction you fire in matters as much as how hard.</p>
   <h3>The six burn directions</h3>
   <ul>
     <li><span class="k">Prograde / retrograde</span>: along / against your direction of travel. Changes your speed, so it raises or lowers the <em>opposite</em> side of the orbit.</li>
@@ -514,23 +527,34 @@ select.field option { background: #0e121e; }
   </ol>
   <h3>Plans with several burns</h3>
   <p>Add up to six burns. Each one is planned from where the burns before it leave you, so it only works if they go as planned. The Manoeuvre panel lists the plan in time order: <span class="o">burns</span> (round markers, like the nodes on the map) fire the engine; <b>events</b> (diamonds) are just things the path does on its own, such as reaching the Moon's sphere of influence or passing closest to it. Click a burn to edit it: the Orbit panel then shows the orbit just after it. Click an event to see the orbit at that point.</p>
-  <p><b>Plan it for me</b> can put you in a circular orbit round whichever body the plan ends at, take you to the Moon and into orbit round it, or bring you home. Where there is more than one way, it lays them side by side with the fuel (Δv) and the time each takes, so you can see what a quicker trip costs. Click one to see it on the map, then <b>Keep this one</b>.</p>
-  <h3>The Moon</h3>
-  <p>The Moon circles Earth every 27.3 days, about 384,000 km out. Inside its <b>sphere of influence</b> (the dashed ring round it) its gravity takes over, and your path bends round it; outside, only Earth counts. This is the patched-conic method Kerbal Space Program uses. A planned path that reaches the Moon shows a faint <span class="g">Moon at encounter</span> where it will be when you arrive, and the part of your path round the Moon is drawn about it.</p>
+  <p><b>Plan it for me</b> can put you in a circular orbit round whichever body the plan ends at, tilt your orbit (to a number, or into another body's orbital plane), or take you to any of the planets or their major moons with <b>Transfer to</b>, and into orbit there if you tick <b>stay in orbit</b>. Where there is more than one way, it lays them side by side with the fuel (Δv) and the time each takes, so you can see what a quicker trip costs. Click one to see it on the map, then <b>Keep this one</b>.</p>
+  <h3>The Moon, the planets and their moons</h3>
+  <p>The Moon circles Earth every 27.3 days, about 384,000 km out. Inside its <b>sphere of influence</b> (the dashed ring round it) its gravity takes over, and your path bends round it; outside, only Earth counts. The same goes all the way up: outside Earth's sphere of influence (about 925,000 km) only the Sun pulls, and inside Jupiter's only Jupiter, until you reach one of its moons. This is the patched-conic method Kerbal Space Program uses. A planned path that reaches another body shows a faint copy of it where it will be when you arrive, and the part of your path round it is drawn about that copy.</p>
+  <h3>Getting to the planets</h3>
+  <p><b>Launch windows.</b> The cheapest way from one planet to another is close to a <b>Hohmann transfer</b>: half an ellipse round the Sun that just touches both orbits. It only works if the target will be at the far end when you get there, so it can only start when the two planets are lined up just right, which happens once every <b>synodic period</b>: every 2 years 50 days for Earth and Mars, every 1 year 219 days for Venus, every 13 months for Jupiter. Leave at the wrong time and the fuel bill can double.</p>
+  <p><b>Fuel against time.</b> A quicker path is a fatter ellipse that cuts across the target's orbit at a steeper angle, so you pay twice: more to leave, and more to stop when you get there. The <b>porkchop plot</b> under each plan shows the fuel for every departure date (across) and trip time (up), darker being cheaper: the dark islands are the launch windows. Click anywhere on it to plan that one.</p>
+  <p><b>Burn low.</b> You leave from a low parking orbit because a burn where you move fastest adds the most energy (the <b>Oberth effect</b>): about 3.6 km/s from low Earth orbit sends you on to Mars, though Mars needs only about 2.9 km/s on top of escape speed far from Earth.</p>
+  <p><b>Going inward is not downhill.</b> Earth carries you round the Sun at 30 km/s, and to fall toward the Sun you must cancel some of that. From low Earth orbit, stopping at Mercury costs more than twice what it takes just to reach Jupiter. The idea of going outward first and burning at aphelion, far out where you move slowly, is a <b>bi-elliptic transfer</b>, and it only pays when the two orbits differ in size by about 12 times or more. Mercury's orbit is only 2.6 times smaller than Earth's, so for Mercury it costs more; but to fall into the Sun itself it saves fuel, and the planner shows both side by side. Real missions to Mercury and the outer planets use <b>gravity assists</b>, swinging past other planets on the way; the planner leaves those out for now.</p>
+  <p>The planner goes one step at a time, from a body to its neighbour, its parent or its moons: to reach Titan from Earth, transfer to Saturn first and plan again from there.</p>
   <h3>Planes and launch windows</h3>
   <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
   <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan, Tanegashima or Sriharikota. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
   <h3>Getting a better look</h3>
-  <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow Moon</b> or <b>Craft</b> keeps it in the centre as it moves.</p>
+  <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow</b> keeps the craft, the Sun or any planet or moon in the centre as it moves; click a body's label on the map to follow it. Zoom out far enough and you see the whole Solar System, with a dated line ahead of the craft as it crosses between the planets.</p>
   <h3>Things to try</h3>
   <ul>
     <li><b>Raise the far side.</b> From low Earth orbit, add a node and pull prograde to +500 m/s. Watch apoapsis climb on the opposite side of Earth while the node point stays put.</li>
     <li><b>Hohmann transfer.</b> From the equatorial parking orbit, plan a Hohmann transfer to 35,786 km (geostationary height). It takes two burns, about 2.4 and 1.5 km/s, half an orbit apart.</li>
     <li><b>Plane changes are expensive.</b> From the ISS-like orbit, plan an inclination change to 0°. Then compare doing it from far out at a transfer orbit's apoapsis, where you move slowly.</li>
-    <li><b>Fly to the Moon.</b> From the equatorial parking orbit, use <b>Transfer to the Moon</b>. The slow way takes about 3.1 km/s and a 5 day coast, then about 0.8 km/s to brake into orbit at the Moon. Compare the quicker transfers: they arrive faster, which makes braking dearer. Untick <b>stay in orbit</b> and the Moon flings you onto a new orbit round Earth instead: a gravity assist.</li>
-    <li><b>Come home.</b> From the low lunar orbit, plan <b>Return to Earth</b>. Braking into orbit at Earth costs about 3 km/s more than the trip itself, which is why Apollo let the atmosphere do it.</li>
+    <li><b>Fly to the Moon.</b> From the equatorial parking orbit, pick the Moon under <b>Transfer to</b>. The slow way takes about 3.1 km/s and a 5 day coast, then about 0.8 km/s to brake into orbit at the Moon. Compare the quicker transfers: they arrive faster, which makes braking dearer. Untick <b>stay in orbit</b> and the Moon flings you onto a new orbit round Earth instead: a gravity assist.</li>
+    <li><b>Come home.</b> From the low lunar orbit, transfer to Earth. Braking into orbit at Earth costs about 3 km/s more than the trip itself, which is why Apollo let the atmosphere do it.</li>
     <li><b>Waiting for a window.</b> Try the same from the ISS-like orbit. Its tilt differs from the Moon's, so the planner waits days until the Moon comes round to where your orbit's plane crosses its path.</li>
     <li><b>Launch to the Moon.</b> Press <b>Launch…</b>, pick Baikonur and <b>The Moon</b>, and launch at the first time offered. Compare with the ISS-like start: the slow transfer now leaves within the hour instead of days later. Press <b>Planes</b> to see why: the line of nodes points to where the Moon will be.</li>
+    <li><b>Mars, and the window.</b> From the equatorial parking orbit, transfer to Mars. A window opens in late 2026, and the plan lists the cheapest trip, the faster ones and their cost. Open <b>Why these ways?</b> and the porkchop plot, then click a point outside the dark island to see what leaving at the wrong time costs.</li>
+    <li><b>Mercury: easy to reach, hard to stop at.</b> From the same orbit, plan Mercury with <b>stay in orbit</b> unticked, then ticked. Reaching it costs about 5 km/s, but you arrive so fast that stopping more than doubles the bill. Compare the bi-elliptic way, out to Jupiter's distance first.</li>
+    <li><b>Down to the Sun.</b> Untick <b>stay in orbit</b> and pick the Sun under <b>Transfer to</b>, to dive within 6 million km of it, as Parker Solar Probe does. Falling straight in costs about 16 km/s from the equatorial orbit; going out to 20 AU first and braking there costs under 10 km/s, but takes 33 years.</li>
+    <li><b>A tour of Jupiter's moons.</b> Start round Ganymede and transfer to Europa, then Callisto: the same windows and trade-offs, in days instead of years.</li>
+    <li><b>Match planes.</b> From the ISS-like orbit, choose <b>the Moon's orbital plane</b> under <b>Change inclination to</b> and plan it: one burn where the planes cross.</li>
     <li><b>The Oberth effect.</b> Put 100 m/s prograde at periapsis of the Molniya orbit, then the same at apoapsis. Burning where you are fastest changes your orbital energy far more.</li>
   </ul>
   <h3>Keys</h3>
@@ -580,16 +604,13 @@ select.field option { background: #0e121e; }
   // ---------- physical constants (km, s) ----------
   const MU = 398600.4418;            // Earth's gravitational parameter, km³/s²
   const RE = 6371;                   // mean radius, km
-  const SOI = 924000;                // Earth's sphere of influence, km
   const MU_M = 4902.800;             // the Moon's gravitational parameter, km³/s²
   const RM = 1737.4;                 // the Moon's mean radius, km
-  const SOI_M = 66100;               // the Moon's sphere of influence, km: a·(m/M)^0.4
-  // Patched conics, as in Kerbal Space Program: the craft feels only one body's gravity at a time. Inside the Moon's
-  // sphere of influence that is the Moon, outside it Earth, so every leg of the path is still an exact two-body orbit.
-  const EARTH = { name: "Earth", the: "Earth", mu: MU, R: RE, soi: SOI };
-  const MOON = { name: "Moon", the: "the Moon", mu: MU_M, R: RM, soi: SOI_M };
-  const EARTH_MOON = { name: "Earth", the: "Earth", mu: MU + MU_M, R: RE, soi: SOI };   // the Moon's own orbit about Earth
-  const SIDEREAL = 86164.0905;       // one rotation, s
+  const MU_SUN = 1.32712440018e11;   // the Sun's, km³/s²
+  const AU = 149597870.7;            // km
+  const DAY = 86400, YEAR = 365.25 * DAY;
+  const J2000_MS = Date.UTC(2000, 0, 1, 12);   // the clock counts seconds from noon on 1 January 2000
+  const SIDEREAL = 86164.0905;       // one rotation of Earth, s
   const KM = 1000;                   // km per scene unit
   const MAX_NODES = 6;
 
@@ -605,11 +626,135 @@ select.field option { background: #0e121e; }
   const wrap = x => ((x % TAU) + TAU) % TAU;
   const wrapPi = x => wrap(x + Math.PI) - Math.PI;
 
+  // ---------- the bodies ----------
+  // One inertial frame for everything: Earth's equator and equinox of J2000 (x toward the March equinox, z toward
+  // Earth's north pole), centred on the Sun. Planets and moons follow fixed Kepler orbits about their parents, from the
+  // same elements as the Orrery. Each body has a sphere of influence, a·(m/M)^0.4: inside it only that body pulls on
+  // the craft (patched conics, as in Kerbal Space Program), so every leg of a path is still an exact two-body orbit.
+  const OBLIQ = 23.4392911 * DEG, cE = Math.cos(OBLIQ), sE = Math.sin(OBLIQ);
+  const ecl2eq = v => [v[0], v[1] * cE - v[2] * sE, v[1] * sE + v[2] * cE];      // ecliptic → equatorial
+  const ECL_POLE = ecl2eq([0, 0, 1]);
+  const EARTH_FRAME = { X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1] };
+  const raDec = (ra, dec) => [Math.cos(dec * DEG) * Math.cos(ra * DEG), Math.cos(dec * DEG) * Math.sin(ra * DEG), Math.sin(dec * DEG)];
+  // position and velocity from classical elements (a km, angles in degrees, M the mean anomaly), in the elements' frame
+  function elemState(mu, a, e, iD, OD, wD, MD) {
+    const M = wrapPi(MD * DEG);
+    let E = e > 0.8 ? Math.PI * Math.sign(M || 1) : M + e * Math.sin(M);
+    for (let k = 0; k < 50; k++) { const d = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); E -= d; if (Math.abs(d) < 1e-14) break; }
+    const nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2));
+    const i = iD * DEG, O = OD * DEG, w = wD * DEG, p = a * (1 - e * e);
+    const cO = Math.cos(O), sO = Math.sin(O), ci = Math.cos(i), si = Math.sin(i), cw = Math.cos(w), sw = Math.sin(w);
+    const P = [cO * cw - sO * sw * ci, sO * cw + cO * sw * ci, sw * si];
+    const Q = [-cO * sw - sO * cw * ci, -sO * sw + cO * cw * ci, cw * si];
+    const r = p / (1 + e * Math.cos(nu)), k = Math.sqrt(mu / p);
+    return { r: add(mul(P, r * Math.cos(nu)), mul(Q, r * Math.sin(nu))), v: add(mul(P, -k * Math.sin(nu)), mul(Q, k * (e + Math.cos(nu)))) };
+  }
+  // mu: gravitational parameter (km³/s²); R: mean radius (km); low: the height below which a pass is in trouble (air,
+  // rings or rock), for warnings; pole: [RA, Dec, rotation period in hours] from the IAU, negative period = turning backwards.
+  const SUN = { name: "Sun", the: "the Sun", mu: MU_SUN, R: 695700, soi: Infinity, color: "#ffd27a", low: 2e6, pole: [286.13, 63.87, 609.12], star: true, kids: [] };
+  // Planets: JPL approximate elements at J2000 (Standish), referred to the ecliptic: a [AU], e, i, mean longitude L,
+  // longitude of perihelion w, ascending node O [deg].
+  const PLANET_DATA = [
+    ["Mercury", 0.38709927, 0.20563593, 7.00497902, 252.25032350, 77.45779628, 48.33076593, 2439.7, 22031.87, "#a9a39a", 10, [281.01, 61.42, 1407.6]],
+    ["Venus", 0.72333566, 0.00677672, 3.39467605, 181.97909950, 131.60246718, 76.67984255, 6051.8, 324858.59, "#e3c48f", 250, [272.76, 67.16, -5832.5]],
+    ["Earth", 1.00000261, 0.01671123, 0.0, 100.46457166, 102.93768193, 0.0, RE, MU, "#5d93d6", 100, [0, 90, 23.9345]],
+    ["Mars", 1.52371034, 0.09339410, 1.84969142, -4.55343205, -23.94362959, 49.55953891, 3389.5, 42828.37, "#d0694a", 100, [317.68, 52.89, 24.623]],
+    ["Jupiter", 5.20288700, 0.04838624, 1.30439695, 34.39644051, 14.72847983, 100.47390909, 69911, 126686534, "#d9b38c", 500, [268.06, 64.50, 9.925]],
+    ["Saturn", 9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448, 58232, 37931187, "#e6d29c", 1000, [40.59, 83.54, 10.656]],
+    ["Uranus", 19.18916464, 0.04725744, 0.77263783, 313.23810451, 170.95427630, 74.01692503, 25362, 5793939, "#9fd8df", 500, [257.31, -15.18, -17.24]],
+    ["Neptune", 30.06992276, 0.00859048, 1.77004347, -55.12002969, 44.96476227, 131.78422574, 24622, 6836529, "#5a74d8", 500, [299.36, 43.46, 16.11]],
+  ];
+  const PLANETS = PLANET_DATA.map(([name, a, e, i, L, w, O, R, mu, color, low, pole]) => {
+    const B = { name, the: name, mu, R, color, low, pole, parent: SUN, kids: [], planet: true };
+    const s = elemState(MU_SUN + mu, a * AU, e, i, O, w - O, L - w);
+    B.orb = { r: ecl2eq(s.r), v: ecl2eq(s.v), t0: 0, mu: MU_SUN + mu };
+    return B;
+  });
+  const byName = {};
+  PLANETS.forEach(B => { byName[B.name] = B; SUN.kids.push(B); });
+  const EARTH = byName.Earth;
+  EARTH.atmo = true;
+  byName.Saturn.ring = true;
+  // The Moon: geocentric mean elements referred to the ecliptic, with its node and perigee turning (Orrery). The orbit is
+  // set from them for the moment the page opens and then kept fixed, so the Sun's slow tug on it is left out.
+  const MOON = { name: "Moon", the: "the Moon", mu: MU_M, R: RM, color: "#cfcac0", low: 10, pole: [266.86, 65.64, 655.72], parent: EARTH, kids: [], moon: true, locked: true };
+  const NOW = Math.round((Date.now() - J2000_MS) / 60000) * 60;    // when the page opened, to the minute
+  {
+    const d = NOW / DAY, O = 125.0445 - 0.05295377 * d, w = 83.3532 + 0.11140353 * d, L = 218.3165 + 360 / 27.321661 * d;
+    const s = elemState(MU + MU_M, 384400, 0.0549, 5.145, O, w - O, L - w);
+    MOON.orb = { r: ecl2eq(s.r), v: ecl2eq(s.v), t0: NOW, mu: MU + MU_M };
+  }
+  EARTH.kids.push(MOON);
+  // Major moons (as the Orrery shows them), osculating elements in the J2000 ecliptic frame, centred on the planet:
+  // a [km], period [days], radius [km], e, i, node, argument of periapsis, mean anomaly [deg] at epoch [JD], and GM [km³/s²].
+  const SAT_DATA = [
+    ["Phobos", "Mars", 9378.938, 0.31891023, 11.08, 0.01468, 28.379985, 85.671324, 103.065503, 173.124729, 2460000.0, "#8f8276", 0.0007087],
+    ["Deimos", "Mars", 23459.739, 1.2624407, 6.2, 0.000283, 27.410671, 78.281156, 55.763709, 331.164065, 2460000.0, "#a39585", 0.0000962],
+    ["Io", "Jupiter", 421769, 1.769137786, 1821.6, 0.0041, 2.212554, 336.850441, 66.167954, 335.152150, 2451545.0, "#d9c56a", 5959.916],
+    ["Europa", "Jupiter", 671079, 3.551181, 1560.8, 0.0094, 1.790890, 332.628081, 254.647596, 345.411243, 2451545.0, "#cdbfa5", 3202.739],
+    ["Ganymede", "Jupiter", 1070428, 7.15455296, 2634.1, 0.0013, 2.214148, 343.170954, 319.809696, 277.048780, 2451545.0, "#9c8f80", 9887.834],
+    ["Callisto", "Jupiter", 1882700, 16.6890184, 2410.3, 0.0074, 2.016906, 337.941534, 16.127956, 85.118909, 2451545.0, "#6e655a", 7179.289],
+    ["Tethys", "Saturn", 294672, 1.887802, 531.1, 0.0001, 27.221003, 167.998171, 157.575335, 350.864392, 2451545.0, "#d8d6d2", 41.21],
+    ["Dione", "Saturn", 377415, 2.736915, 561.4, 0.0022, 28.041482, 169.470090, 164.934721, 332.057584, 2451545.0, "#c8c4be", 73.116],
+    ["Rhea", "Saturn", 527068, 4.518212, 763.8, 0.0012583, 28.241393, 168.984156, 165.781086, 206.903127, 2451545.0, "#bfbab2", 153.94],
+    ["Titan", "Saturn", 1221900, 15.945421, 2574.7, 0.029, 27.651780, 169.833700, 112.498534, 11.7, 2451545.0, "#d9a75a", 8978.14],
+    ["Iapetus", "Saturn", 3560851, 79.330183, 734.5, 0.0276812, 17.238222, 139.691756, 229.658481, 208.017516, 2451545.0, "#8a7a68", 120.51],
+    ["Miranda", "Uranus", 129390, 1.413479, 235.8, 0.0013, 97.267986, 172.065967, 261.816760, 61.247779, 2451545.0, "#a8a49e", 4.4],
+    ["Ariel", "Uranus", 191020, 2.520379, 578.9, 0.0012, 97.721321, 167.616776, 43.284123, 154.841923, 2451545.0, "#b8b4ae", 86.4],
+    ["Umbriel", "Uranus", 266000, 4.1441772, 584.7, 0.0039, 97.679326, 167.637075, 334.489611, 271.690065, 2451545.0, "#77726d", 81.5],
+    ["Titania", "Uranus", 435910, 8.706234, 788.4, 0.0011, 97.821207, 167.613219, 203.953805, 72.597842, 2451545.0, "#b3a89c", 228.2],
+    ["Oberon", "Uranus", 583520, 13.463234, 761.4, 0.0014, 97.877864, 167.756308, 252.847153, 94.662801, 2451545.0, "#9e9087", 192.4],
+    ["Proteus", "Neptune", 117647, 1.12231477, 210, 0.00053, 28.908433, 48.083589, 81.195458, 34.162384, 2447763.5, "#6b6560", 2.9],
+    ["Triton", "Neptune", 354759, 5.8768541, 1353.4, 0.000016, 130.909204, 213.174202, 278.113474, 349.996104, 2447763.5, "#d8c8c0", 1427.6],
+    ["Nereid", "Neptune", 5506217, 359.396374, 170, 0.753882, 5.055101, 319.892917, 296.451886, 36.055860, 2447763.5, "#8a8580", 2.06],
+  ];
+  const SATS = SAT_DATA.map(([name, host, aKm, P, R, e, i, O, argp, M, epoch, color, mu]) => {
+    const parent = byName[host], n = TAU / (P * DAY), muEff = n * n * aKm ** 3;   // keeps each moon's real period
+    const B = { name, the: name, mu, R, color, parent, kids: [], moon: true, locked: name !== "Nereid", low: name === "Titan" ? 800 : Math.max(1, Math.round(R * 0.005)) };
+    const s = elemState(muEff, aKm, e, i, O, argp, M);
+    B.orb = { r: ecl2eq(s.r), v: ecl2eq(s.v), t0: (epoch - 2451545) * DAY, mu: muEff };
+    parent.kids.push(B);
+    return B;
+  });
+  SATS.forEach(B => { byName[B.name] = B; });
+  byName.Moon = MOON; byName.Sun = SUN;
+  const BODIES = [SUN, ...PLANETS.flatMap(P => [P, ...P.kids])];
+  // Orbits and frames, once every body has its elements
+  BODIES.forEach(B => {
+    if (B.orb) B.orb = orbitFromState(B.orb.r, B.orb.v, B.orb.t0, B.parent, B.orb.mu);
+    // the sphere of influence. Phobos and Deimos are so small that theirs barely clears their surface (Phobos's is
+    // inside it), so it is stretched to three radii here, or nothing could orbit them at all.
+    if (B.parent) { const laplace = B.orb.a * Math.pow(B.mu / B.parent.mu, 0.4); B.soi = Math.max(laplace, 3 * B.R); B.soiStretched = laplace < 3 * B.R; }
+    // north: the pole the body turns anticlockwise about (so Uranus's and Venus's are the IAU south poles); a moon that
+    // always shows its planet the same face turns about its orbit's axis
+    if (B.pole) { const z = raDec(B.pole[0], B.pole[1]); B.Z = B.pole[2] < 0 ? mul(z, -1) : z; B.spin = Math.abs(B.pole[2]) * 3600; }
+    else { B.Z = B.orb.W; B.spin = B.orb.period; }
+    if (B === SUN) B.Z = ECL_POLE;               // round the Sun, tilts are measured from the ecliptic, the plane of Earth's orbit
+    // reference direction in the equator: the March equinox for Earth and the Sun, else where the body's equator
+    // crosses Earth's heading north (the IAU convention)
+    B.X = B === EARTH || B === SUN ? [1, 0, 0] : unit(cross([0, 0, 1], B.Z));
+    B.Y = cross(B.Z, B.X);
+  });
+  // a body's position and velocity relative to its parent, and relative to the Sun
+  const relState = (B, t) => stateAt(B.orb, t);
+  function helio(B, t) {
+    let r = [0, 0, 0], v = [0, 0, 0];
+    for (let b = B; b.parent; b = b.parent) { const s = stateAt(b.orb, t); r = add(r, s.r); v = add(v, s.v); }
+    return { r, v };
+  }
+  const helioPos = (B, t) => helio(B, t).r;
+  const chainOf = B => { const c = []; for (let b = B; b; b = b.parent) c.push(b); return c; };   // the body, its parent, … the Sun
+  const isAncestor = (A, B) => { for (let b = B.parent; b; b = b.parent) if (b === A) return true; return false; };
+  const poss = B => B.the + "'s";                                     // "the Moon's", "Mars's"
+  const Poss = B => { const s = poss(B); return s[0].toUpperCase() + s.slice(1); };
+  const The = B => B.the[0].toUpperCase() + B.the.slice(1);
+
   // ---------- two-body orbits ----------
   // An orbit is fixed by a state (r, v) at time t0. It keeps the perifocal frame (P toward periapsis, Q 90° ahead,
   // W along the angular momentum) and the mean anomaly at t0, so any later state is exact, however far ahead.
-  function orbitFromState(r, v, t0, body = EARTH) {
-    const MU = body.mu, rm = len(r), v2 = dot(v, v);
+  // Its tilt and node are measured in the body's own frame: its equator (the ecliptic round the Sun).
+  function orbitFromState(r, v, t0, body = EARTH, muOverride) {
+    const MU = muOverride || body.mu, rm = len(r), v2 = dot(v, v);
     let h = cross(r, v);
     if (len(h) < 1e-6) { v = add(v, mul(unit(cross(r, [0.3, 0.2, 1])), 1e-4)); h = cross(r, v); }   // a purely radial path has no plane
     const hm = len(h), W = mul(h, 1 / hm);
@@ -632,13 +777,17 @@ select.field option { background: #0e121e; }
     }
     o.rp = p / (1 + e);
     o.ra = e < 1 ? p / (1 - e) : Infinity;
-    o.i = Math.acos(clamp(W[2], -1, 1));
-    const nv = [-h[1], h[0], 0], nm = Math.hypot(nv[0], nv[1]);
+    // tilt, node and periapsis in the body's frame (its equator, or the ecliptic round the Sun)
+    const fr = body.Z ? body : EARTH_FRAME, loc = x => [dot(x, fr.X), dot(x, fr.Y), dot(x, fr.Z)];
+    const hL = loc(h), PL = loc(P);
+    o.i = Math.acos(clamp(hL[2] / hm, -1, 1));
+    const nv = [-hL[1], hL[0], 0], nm = Math.hypot(nv[0], nv[1]);
     o.equatorial = nm < 1e-7 * hm;
     o.raan = o.equatorial ? NaN : wrap(Math.atan2(nv[1], nv[0]));
+    o.nodeDir = o.equatorial ? null : unit(add(mul(fr.X, nv[0]), mul(fr.Y, nv[1])));   // toward the ascending node
     if (e < 1e-7) o.argp = NaN;
-    else if (o.equatorial) o.argp = wrap(Math.atan2(P[1], P[0]) * (W[2] >= 0 ? 1 : -1));   // longitude of periapsis
-    else { let w = Math.acos(clamp(dot(nv, P) / nm, -1, 1)); if (P[2] < 0) w = TAU - w; o.argp = w; }
+    else if (o.equatorial) o.argp = wrap(Math.atan2(PL[1], PL[0]) * (hL[2] >= 0 ? 1 : -1));   // longitude of periapsis
+    else { let w = Math.acos(clamp(dot(nv, PL) / nm, -1, 1)); if (PL[2] < 0) w = TAU - w; o.argp = w; }
     o.nuAsym = e >= 1 ? Math.acos(-1 / e) : Infinity;    // a hyperbola's true anomaly can't reach this
     return o;
   }
@@ -700,28 +849,24 @@ select.field option { background: #0e121e; }
     const P = [cO * cw - sO * sw * ci, sO * cw + cO * sw * ci, sw * si];
     const Q = [-cO * sw - sO * cw * ci, -sO * sw + cO * cw * ci, cw * si];
     const r = p / (1 + e * Math.cos(nu)), k = Math.sqrt(body.mu / p);
+    const g = x => add(add(mul(body.X, x[0]), mul(body.Y, x[1])), mul(body.Z, x[2]));   // the body's frame → the global one
+    const Pg = g(P), Qg = g(Q);
     return {
-      r: add(mul(P, r * Math.cos(nu)), mul(Q, r * Math.sin(nu))),
-      v: add(mul(P, -k * Math.sin(nu)), mul(Q, k * (e + Math.cos(nu)))),
+      r: add(mul(Pg, r * Math.cos(nu)), mul(Qg, r * Math.sin(nu))),
+      v: add(mul(Pg, -k * Math.sin(nu)), mul(Qg, k * (e + Math.cos(nu)))),
     };
   }
-  // ---------- the Moon ----------
-  // A fixed Kepler orbit about Earth with the Moon's real size and shape: mean distance 384,748 km, eccentricity 0.055,
-  // tilted 28.5° to the equator (as near the 2025 lunar standstill), one lap per 27.3 days. The Sun's pull on it is left out.
-  const MOON_ORB = (() => {
-    const a = 384748, e = 0.0549, s = stateFromConic(a * (1 - e) - RE, e, 28.5, 0, 0, 105, EARTH_MOON);
-    return orbitFromState(s.r, s.v, 0, EARTH_MOON);
-  })();
+  // ---------- patched conics ----------
+  // The Moon's orbit about Earth, and the old names for it, which the Moon planners use
+  const MOON_ORB = MOON.orb, SOI_M = MOON.soi;
   const moonAt = t => stateAt(MOON_ORB, t);
-  // where the craft is relative to Earth, whichever body it is orbiting
-  function geoState(o, t) {
-    const s = stateAt(o, t);
-    if (o.body !== MOON) return s;
-    const m = moonAt(t);
-    return { r: add(s.r, m.r), v: add(s.v, m.v), nu: s.nu };
+  // where the craft is relative to the Sun, whichever body it is orbiting
+  function globalState(o, t) {
+    const s = stateAt(o, t), b = helio(o.body, t);
+    return { r: add(s.r, b.r), v: add(s.v, b.v), nu: s.nu };
   }
 
-  // Orbits built from the same state are shared, so the slow search for a Moon encounter runs once per orbit, not every frame.
+  // Orbits built from the same state are shared, so the slow search for an encounter runs once per orbit, not every frame.
   const orbitCache = new Map();
   function cachedOrbit(r, v, t0, body) {
     const key = `${body.name}|${r.join()}|${v.join()}|${t0}`;
@@ -729,44 +874,52 @@ select.field option { background: #0e121e; }
     if (!o) { if (orbitCache.size > 400) orbitCache.clear(); o = orbitFromState(r, v, t0, body); orbitCache.set(key, o); }
     return o;
   }
-  // the same path, seen from the other body: crossing into or out of the Moon's sphere of influence
-  function rebaseAt(o, t) {
-    const s = stateAt(o, t), m = moonAt(t);
-    return o.body === MOON
-      ? cachedOrbit(add(s.r, m.r), add(s.v, m.v), t, EARTH)
-      : cachedOrbit(sub(s.r, m.r), sub(s.v, m.v), t, MOON);
+  // the same path, seen from another body: crossing into a moon's (or planet's) sphere of influence, or out to the parent's
+  function rebaseTo(o, t, C) {
+    const s = stateAt(o, t);
+    if (C === o.body.parent) { const b = relState(o.body, t); return cachedOrbit(add(s.r, b.r), add(s.v, b.v), t, C); }
+    const c = relState(C, t);
+    return cachedOrbit(sub(s.r, c.r), sub(s.v, c.v), t, C);
   }
-  // First time after tA (and before tB) that an Earth orbit enters the Moon's sphere of influence, or null.
+  // the old one-step version: to the Moon from Earth, or back
+  const rebaseAt = (o, t) => rebaseTo(o, t, o.body === MOON ? EARTH : MOON);
+  // First time after tA (and before tB) that an orbit round C's parent enters C's sphere of influence, or null.
   // Steps forward no further than the gap to the sphere could close at top speed, so it can't jump over it.
-  function findEncounter(o, tA, tB) {
-    if (o.e < 1 && o.ra < MOON_ORB.rp - SOI_M) return null;
-    if (o.rp > MOON_ORB.ra + SOI_M) return null;
-    const c = o._enc;
+  function findEncounter(o, tA, tB, C = MOON) {
+    const co = C.orb;
+    if (o.e < 1 && o.ra < co.rp - C.soi) return null;
+    if (o.rp > co.ra + C.soi) return null;
+    const cache = o._enc || (o._enc = {}), c = cache[C.name];
     if (c && tA >= c.from) {
       if (c.t !== null && c.t > tA) return c.t <= tB ? c.t : null;
       if (c.t === null && tB <= c.to) return null;
     }
     const to = tA + Math.max(tB - tA, 0) * 1.5 + 3600;   // look a little further ahead than asked, so the answer lasts a while
-    const vmax = o.h / o.rp + 1.1;                        // craft's top speed plus the Moon's
-    const dist = t => len(sub(stateAt(o, t).r, moonAt(t).r));
-    let t = tA, d = dist(t), outside = d > SOI_M, found = null;
+    const vmax = o.h / o.rp + co.h / co.rp * 1.05;      // craft's top speed plus the body's
+    const dist = t => len(sub(stateAt(o, t).r, stateAt(co, t).r));
+    const minStep = clamp(C.soi / vmax * 0.05, 0.5, 20);
+    let t = tA, d = dist(t), outside = d > C.soi, found = null;
     for (let k = 0; k < 40000 && t < to; k++) {
-      const t2 = Math.min(to, t + Math.max(20, (d - SOI_M) / vmax * 0.9));
+      const t2 = Math.min(to, t + Math.max(minStep, (d - C.soi) / vmax * 0.9));
       const d2 = dist(t2);
-      if (d2 < SOI_M && outside) {
+      if (d2 < C.soi && outside) {
         let lo = t, hi = t2;                              // pin down the crossing
-        while (hi - lo > 0.5) { const mid = (lo + hi) / 2; if (dist(mid) < SOI_M) hi = mid; else lo = mid; }
+        while (hi - lo > 0.05) { const mid = (lo + hi) / 2; if (dist(mid) < C.soi) hi = mid; else lo = mid; }
         found = hi; break;
       }
-      if (d2 >= SOI_M) outside = true;
+      if (d2 >= C.soi) outside = true;
       t = t2; d = d2;
     }
-    o._enc = { from: tA, to, t: found };
+    cache[C.name] = { from: tA, to, t: found };
     return found !== null && found <= tB ? found : null;
   }
-  // how far ahead to look for a Moon encounter on an Earth orbit
-  const lookAhead = o => o.e < 1 ? clamp(3 * o.period, 86400, 60 * 86400) : 60 * 86400;
-  // The first thing to end a leg after t0: hitting the surface, leaving Earth's sphere of influence, or crossing the Moon's.
+  // how far ahead to look for an encounter: a few laps, at least a day, at most two months round a planet and
+  // thirty years round the Sun
+  const lookAhead = o => {
+    const most = o.body === SUN ? 30 * YEAR : 60 * DAY;
+    return o.e < 1 ? clamp(3 * o.period, DAY, most) : most;
+  };
+  // The first thing to end a leg after t0: hitting the surface, leaving the body's sphere of influence, or entering a moon's.
   function legEvent(o, t0) {
     const B = o.body;
     let ev = null;
@@ -774,15 +927,18 @@ select.field option { background: #0e121e; }
       const nu = radiusToNu(o, B.R, false), dt = timeToNu(o, t0, nu);
       if (dt < Infinity) ev = { type: "impact", t: t0 + dt, nu };
     }
-    if (o.ra > B.soi) {
+    if (B.parent && o.ra > B.soi) {
       const nu = radiusToNu(o, B.soi, true), dt = timeToNu(o, t0, nu);
-      if (dt < Infinity && (!ev || t0 + dt < ev.t)) ev = { type: B === MOON ? "soi" : "escape", t: t0 + dt, nu };
+      if (dt < Infinity && (!ev || t0 + dt < ev.t)) ev = { type: "soi", t: t0 + dt, nu, to: B.parent };
     }
-    if (B !== MOON) {
-      const tE = findEncounter(o, t0, ev ? ev.t : t0 + lookAhead(o));
-      if (tE !== null && (!ev || tE < ev.t)) ev = { type: "soi", t: tE, nu: nuFromMean(o, meanAt(o, tE)) };
+    if (B.kids.length) {
+      const limit = ev ? ev.t : t0 + lookAhead(o);
+      for (const C of B.kids) {
+        const tE = findEncounter(o, t0, ev ? ev.t : limit, C);
+        if (tE !== null && (!ev || tE < ev.t)) ev = { type: "soi", t: tE, nu: nuFromMean(o, meanAt(o, tE)), to: C };
+      }
     }
-    if (ev && ev.type === "soi") ev.next = rebaseAt(o, ev.t);
+    if (ev && ev.type === "soi") ev.next = rebaseTo(o, ev.t, ev.to);
     return ev;
   }
 
@@ -805,6 +961,10 @@ select.field option { background: #0e121e; }
       note: "Faster than escape speed: the path is a hyperbola that swings past Earth and never comes back. A retrograde burn at periapsis, where it moves fastest, is the cheapest way to be captured into orbit." },
     lunar: { s: () => stateFromElements(100, 100, 90, 0, 0, 0, MOON), body: MOON, cam: 9, warp: 5,
       note: "A circular 100 km polar orbit round the Moon, like a lunar mapping probe. The Moon's gravity is about a sixth of Earth's, so one lap takes about 2 hours at only 1.6 km/s." },
+    mars: { s: () => stateFromElements(300, 300, 25, 0, 0, 0, byName.Mars), body: byName.Mars, cam: 19, warp: 5,
+      note: "A circular 300 km orbit round Mars, tilted 25° to its equator. Mars has about a tenth of Earth's mass, so one lap takes just under two hours at 3.4 km/s. Phobos and Deimos circle further out." },
+    ganymede: { s: () => stateFromElements(500, 500, 88, 0, 0, 0, byName.Ganymede), body: byName.Ganymede, cam: 16, warp: 6,
+      note: "A 500 km polar orbit round Ganymede, Jupiter's largest moon, where the JUICE probe is due to end up. Try a transfer to Europa or Callisto: a tour of the moons, all inside Jupiter's sphere of influence." },
   };
 
   // ---------- state ----------
@@ -812,7 +972,7 @@ select.field option { background: #0e121e; }
     t: 0, met0: 0, site: null, playing: true, warpIdx: 5, orbit: null, spent: 0, nodes: [], sel: null, nextId: 1, ended: null,
     thrust: { pro: 0, nrm: 0, rad: 0 }, acc: 5, scenario: "leo",
   };
-  const WARPS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+  const WARPS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1e6, 2.5e6, 5e6, 1e7];
 
   // trajectory: the current orbit up to the first node, then the orbit after each node in turn
   let traj = [];
@@ -823,25 +983,34 @@ select.field option { background: #0e121e; }
   ["pointermove", "pointerdown", "pointerup", "wheel", "keydown", "keyup", "input", "change", "click", "resize"].forEach(ev => window.addEventListener(ev, wake, { capture: true, passive: true }));
   document.addEventListener("visibilitychange", wake);
 
-  // Each leg is one exact two-body orbit about Earth or the Moon. A leg ends at a node, at a crossing into or out of
-  // the Moon's sphere of influence (the path carries on round the other body), or at a crash or escape.
-  // refT is when the Moon is drawn for a leg about it: now, if the craft is already there, or else when it arrives.
+  // Each leg is one exact two-body orbit about one body. A leg ends at a node, at a crossing into or out of a sphere
+  // of influence (the path carries on round the other body), or at a crash.
+  // A leg is drawn about its body where that body is at refT: now, for the body the craft is round now and the ones
+  // that body circles (so the frame you're in stays put); for a body the path reaches later, where it will be then,
+  // placed from where its parent is drawn. anchor is that position, relative to the Sun.
   // It works on any list of nodes, so a planner can try out a plan before showing it.
   function computeTraj(orbit, tNow, nodes) {
     nodes.sort((a, b) => a.t - b.t);
     const traj = [];
     let orb = orbit, t0 = tNow, refT = tNow, j = 0, planned = false;
+    const anchors = new Map(), refs = new Map();
+    chainOf(orbit.body).forEach(b => { anchors.set(b, helioPos(b, tNow)); refs.set(b, tNow); });
     for (let guard = 0; ; guard++) {
       const node = nodes[j];
-      const seg = { orb, body: orb.body, t0, refT, planned, t1: node ? node.t : Infinity, end: null, endT: Infinity,
-        origin: orb.body === MOON ? toScene(moonAt(refT).r) : new THREE.Vector3() };
+      const seg = { orb, body: orb.body, t0, refT: refs.get(orb.body), planned, t1: node ? node.t : Infinity, end: null, endT: Infinity,
+        anchor: anchors.get(orb.body), origin: new THREE.Vector3() };
       const ev = legEvent(orb, t0);
       traj.push(seg);
       if (ev && (!node || ev.t < node.t)) {
         seg.end = ev.type; seg.endT = ev.t; seg.endNu = ev.nu;
         if (ev.type === "soi" && guard < 14) {          // carry on round the other body
           seg.t1 = ev.t;
-          orb = ev.next; t0 = ev.t; refT = ev.t;
+          const C = ev.to;
+          if (C !== orb.body.parent || !anchors.has(C)) {   // entering a moon (or planet): it is drawn where it will be then
+            anchors.set(C, C.parent ? add(anchors.get(C.parent) || helioPos(C.parent, ev.t), relState(C, ev.t).r) : [0, 0, 0]);
+            refs.set(C, ev.t);
+          }
+          orb = ev.next; t0 = ev.t;
           continue;
         }
         // later nodes can never be reached: keep them, but skip them
@@ -878,23 +1047,28 @@ select.field option { background: #0e121e; }
   renderer.setPixelRatio(PIXEL_RATIO);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#06080f");
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.02, 60000);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.02, 1e7);   // near and far follow the zoom (see frame)
   const controls = new THREE.OrbitControls(camera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.minDistance = 0.05;
-  controls.maxDistance = 4000;
+  controls.maxDistance = 4e7;
   controls.enablePan = false;
   controls.rotateSpeed = 0.7;
 
-  // Earth-centred inertial frame (x toward the vernal equinox, z to the north pole) → scene (y up)
+  // The global frame (x toward the March equinox, z to Earth's north pole) → scene (y up). Positions are worked out in
+  // km from the Sun, in double precision, but drawn from the centre of the body the camera is looking at (a floating
+  // origin), so the 32-bit numbers the graphics card uses stay small, and steady close up, with Neptune 4.5 billion km out.
+  let viewBody = EARTH, VO = [0, 0, 0];
+  const setViewOrigin = () => { VO = helioPos(viewBody, sim.t); };
   const toScene = (r, out) => (out || new THREE.Vector3()).set(r[0] / KM, r[2] / KM, -r[1] / KM);
+  const sceneOf = (g, out) => toScene(sub(g, VO), out);
   const dirScene = (d, out) => (out || new THREE.Vector3()).set(d[0], d[2], -d[1]);
+  const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
-  // light: the Sun, fixed far away along a direction a little north of the reference direction
-  const sunDir = new THREE.Vector3(0.82, 0.25, 0.52).normalize();
-  const sunLight = new THREE.DirectionalLight(0xfff2dc, 1.35);
-  sunLight.position.copy(sunDir);
+  // light: the Sun itself, wherever it is
+  const sunLight = new THREE.PointLight(0xfff2dc, 1.35, 0, 0);
+  const sunDir = new THREE.Vector3(1, 0, 0);     // from Earth toward the Sun, for the glow of Earth's air
   scene.add(sunLight, new THREE.AmbientLight(0xffffff, 0.12));
 
   function radialTexture(stops, n = 128) {
@@ -905,11 +1079,12 @@ select.field option { background: #0e121e; }
     return new THREE.CanvasTexture(c);
   }
 
-  // stars: real bright-star catalogue, placed at their RA/Dec in the equatorial frame
-  {
+  // stars: real bright-star catalogue, placed at their RA/Dec in the equatorial frame, on a sphere that moves with the camera
+  const STAR_R = 20000;
+  const stars = (() => {
     const N = STAR_DATA.length / 4, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N);
     const stops = [[-0.4, [0.62, 0.71, 1.0]], [0.0, [0.80, 0.85, 1.0]], [0.4, [1.0, 0.98, 0.95]], [0.8, [1.0, 0.90, 0.75]], [1.2, [1.0, 0.80, 0.58]], [2.0, [1.0, 0.66, 0.42]]];
-    const R = 20000;
+    const R = STAR_R;
     for (let n = 0; n < N; n++) {
       const ra = STAR_DATA[n * 4] * DEG, dec = STAR_DATA[n * 4 + 1] * DEG, mag = STAR_DATA[n * 4 + 2];
       let bv = clamp(STAR_DATA[n * 4 + 3], -0.4, 2.0), k = 0;
@@ -935,17 +1110,52 @@ select.field option { background: #0e121e; }
     }));
     stars.frustumCulled = false; stars.renderOrder = -2;
     scene.add(stars);
-  }
+    return stars;
+  })();
 
-  // Earth, its clouds and a thin blue limb
-  const earth = new THREE.Group();
-  scene.add(earth);
+  // ---------- the Sun, planets and moons ----------
   const texLoad = src => { const t = new THREE.TextureLoader().load(src, wake); t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); return t; };
+  // Moons without a full map get a seeded, mottled surface in their own colour (as in the Orrery)
+  function makeSurface(B) {
+    const c = document.createElement("canvas"); c.width = 512; c.height = 256;
+    const x = c.getContext("2d");
+    x.fillStyle = B.color; x.fillRect(0, 0, 512, 256);
+    let seed = [...B.name].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 2147483647;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    for (let n = 0; n < 420; n++) {
+      const r = 2 + Math.pow(rnd(), 3) * 40, cx = rnd() * 512, cy = 20 + rnd() * 216;
+      const light = rnd() < 0.5;
+      x.fillStyle = light ? `rgba(255,255,255,${0.04 + rnd() * 0.08})` : `rgba(40,25,15,${0.05 + rnd() * 0.12})`;
+      x.beginPath(); x.ellipse(cx, cy, r * 1.6, r, 0, 0, Math.PI * 2); x.fill();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+  // Each body is a group whose local +Y is its north pole, holding a sphere that spins about it. True sizes throughout.
+  BODIES.forEach(B => {
+    B.pos = new THREE.Vector3();
+    if (B === SUN) return;
+    B.g = new THREE.Group();
+    B.g.quaternion.setFromUnitVectors(Y_AXIS, dirScene(B.Z).normalize());
+    const big = B.R > 1500, seg = B === EARTH ? 96 : big ? 64 : 32;
+    B.mesh = new THREE.Mesh(new THREE.SphereGeometry(B.R / KM, seg, seg / 2),
+      new THREE.MeshLambertMaterial({ map: TEXTURES[B.name] ? texLoad(TEXTURES[B.name]) : makeSurface(B) }));
+    B.g.add(B.mesh);
+    if (B.ring) {
+      // Saturn's rings span about 1.24 to 2.33 planet radii; map the ring strip texture radially
+      const RIN = 1.24 * B.R / KM, ROUT = 2.33 * B.R / KM, rg = new THREE.RingGeometry(RIN, ROUT, 160, 1);
+      const pos = rg.attributes.position, uv = rg.attributes.uv;
+      for (let i = 0; i < pos.count; i++) uv.setXY(i, (Math.hypot(pos.getX(i), pos.getY(i)) - RIN) / (ROUT - RIN), 0.5);
+      const ring = new THREE.Mesh(rg, new THREE.MeshLambertMaterial({ map: texLoad(TEXTURES.Ring), side: THREE.DoubleSide, transparent: true, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;    // into the equatorial plane
+      B.g.add(ring);
+    }
+    scene.add(B.g);
+  });
   const earthR = RE / KM;
-  const earthBody = new THREE.Mesh(new THREE.SphereGeometry(earthR, 96, 48), new THREE.MeshLambertMaterial({ map: texLoad(TEXTURES.Earth) }));
+  // Earth's clouds turn with it; a thin blue limb glows on the sunlit side
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(earthR * 1.006, 96, 48),
     new THREE.MeshLambertMaterial({ color: 0xffffff, alphaMap: texLoad(CLOUD_TEX), transparent: true, depthWrite: false }));
-  earth.add(earthBody, clouds);
+  EARTH.mesh.add(clouds);
   const atmo = new THREE.Mesh(new THREE.SphereGeometry(earthR * 1.025, 96, 48), new THREE.ShaderMaterial({
     uniforms: { sun: { value: sunDir } },
     vertexShader: `varying vec3 vN; varying vec3 vV; varying vec3 vW;
@@ -956,87 +1166,129 @@ select.field option { background: #0e121e; }
         gl_FragColor = vec4(vec3(0.35, 0.6, 1.0) * rim * (0.15 + 0.85 * lit), 1.0); }`,
     blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
   }));
-  scene.add(atmo);
+  EARTH.g.add(atmo);
+  // The Sun: its map, brightened, and soft glows drawn behind everything (they are flat sprites, which would otherwise
+  // slice through a planet near the Sun), sized so it still shows as a bright point from the outer planets
+  const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(SUN.R / KM, 64, 32), new THREE.MeshBasicMaterial({ map: texLoad(TEXTURES.Sun), color: new THREE.Color(1.9, 1.7, 1.35) }));
+  sunMesh.quaternion.setFromUnitVectors(Y_AXIS, dirScene(raDec(SUN.pole[0], SUN.pole[1])).normalize());
+  const sunSprite = stops => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTexture(stops), blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false, transparent: false })); s.renderOrder = -1; return s; };
+  const sunGlow = sunSprite([[0, "rgba(255,220,150,0.95)"], [0.1, "rgba(255,200,120,0.6)"], [0.25, "rgba(255,180,90,0.22)"], [0.5, "rgba(255,160,70,0.06)"], [0.75, "rgba(255,150,60,0.015)"], [1, "rgba(255,150,60,0)"]]);
+  const corona = sunSprite([[0, "rgba(255,248,225,1)"], [0.32, "rgba(255,240,205,0.95)"], [0.42, "rgba(255,222,160,0.5)"], [0.6, "rgba(255,200,130,0.14)"], [0.8, "rgba(255,185,110,0.03)"], [1, "rgba(255,180,100,0)"]]);
+  scene.add(sunMesh, sunGlow, corona);
 
-  // equatorial plane: faint rings every 10,000 km, the geostationary ring, and the fixed reference direction (♈︎)
-  const eqGroup = new THREE.Group();
-  scene.add(eqGroup);
-  {
-    const ringGeo = (R, n = 256) => {
-      const a = new Float32Array((n + 1) * 3);
-      for (let k = 0; k <= n; k++) { const t = k / n * TAU; a.set([Math.cos(t) * R, 0, -Math.sin(t) * R], k * 3); }
-      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3)); return g;
-    };
-    for (let R = 10000; R <= 60000; R += 10000) {
-      eqGroup.add(new THREE.Line(ringGeo(R / KM), new THREE.LineBasicMaterial({ color: 0xc9a45c, transparent: true, opacity: 0.09, depthWrite: false })));
+  // where a body will be when a planned path reaches it (a faint copy of it)
+  const ghostPool = [];
+  function ghostFor(k, B) {
+    let g = ghostPool[k];
+    if (!g) { g = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.18, depthWrite: false })); scene.add(g); ghostPool[k] = g; }
+    g.scale.setScalar(B.R / KM); g.material.color.set(B.color); g.visible = true;
+    return g;
+  }
+  // each body's orbit about its parent, drawn about where the parent is now
+  BODIES.forEach(B => {
+    if (!B.orb) return;
+    const n = B.orb.e > 0.3 ? 1024 : 512, a = new Float32Array((n + 1) * 3), v = new THREE.Vector3();
+    for (let k = 0; k <= n; k++) {
+      const E = k / n * TAU, e = B.orb.e, nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2));
+      toScene(stateAtNu(B.orb, nu).r, v); a.set([v.x, v.y, v.z], k * 3);
     }
-    eqGroup.add(new THREE.Line(ringGeo(42164 / KM), new THREE.LineBasicMaterial({ color: 0xc9a45c, transparent: true, opacity: 0.28, depthWrite: false })));
-    const spokes = [];
-    for (let k = 0; k < 12; k++) { const t = k / 12 * TAU; spokes.push(Math.cos(t) * earthR * 1.05, 0, -Math.sin(t) * earthR * 1.05, Math.cos(t) * 60, 0, -Math.sin(t) * 60); }
-    const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(spokes), 3));
-    eqGroup.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0xc9a45c, transparent: true, opacity: 0.05, depthWrite: false })));
-    const ag = new THREE.BufferGeometry(); ag.setAttribute("position", new THREE.BufferAttribute(new Float32Array([earthR, 0, 0, 14, 0, 0]), 3));
-    eqGroup.add(new THREE.Line(ag, new THREE.LineBasicMaterial({ color: 0xe9c98a, transparent: true, opacity: 0.45 })));
-    // equator line on the planet itself
-    eqGroup.add(new THREE.Line(ringGeo(earthR * 1.002), new THREE.LineBasicMaterial({ color: 0xe9c98a, transparent: true, opacity: 0.35 })));
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3));
+    B.orbitLine = new THREE.Line(g, new THREE.LineBasicMaterial({ color: B.color, transparent: true, opacity: B.planet ? 0.4 : 0.28, depthWrite: false }));
+    B.orbitLine.frustumCulled = false;
+    scene.add(B.orbitLine);
+  });
+  // the edge of a sphere of influence: a dashed ring that always faces the camera
+  const soiPool = [];
+  function soiRingFor(k) {
+    let l = soiPool[k];
+    if (!l) {
+      const n = 128, a = new Float32Array((n + 1) * 3);
+      for (let j = 0; j <= n; j++) { const t = j / n * TAU; a.set([Math.cos(t), Math.sin(t), 0], j * 3); }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3));
+      l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xcfcac0, transparent: true, opacity: 0.3, dashSize: 0.06, gapSize: 0.045, depthWrite: false }));
+      l.computeLineDistances(); l.frustumCulled = false;
+      scene.add(l); soiPool[k] = l;
+    }
+    l.visible = true;
+    return l;
   }
 
-  // the Moon: textured, lit by the Sun, turning once per orbit so the same face always looks at Earth
-  const moonR = RM / KM;
-  const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(moonR, 64, 32), new THREE.MeshLambertMaterial({ map: texLoad(TEXTURES.Moon) }));
-  scene.add(moonMesh);
-  // where the Moon will be when a planned path reaches it
-  const moonGhost = new THREE.Mesh(new THREE.SphereGeometry(moonR, 32, 16), new THREE.MeshBasicMaterial({ color: 0xcfcac0, transparent: true, opacity: 0.18, depthWrite: false }));
-  moonGhost.visible = false;
-  scene.add(moonGhost);
-  // its orbit, and the edge of its sphere of influence (a ring that always faces the camera)
-  const moonOrbitLine = (() => {
-    const n = 512, a = new Float32Array((n + 1) * 3), v = new THREE.Vector3();
-    for (let k = 0; k <= n; k++) { toScene(stateAtNu(MOON_ORB, k / n * TAU).r, v); a.set([v.x, v.y, v.z], k * 3); }
-    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3));
-    return new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xcfcac0, transparent: true, opacity: 0.28, depthWrite: false }));
-  })();
-  scene.add(moonOrbitLine);
-  const soiRing = (() => {
-    const n = 128, a = new Float32Array((n + 1) * 3);
-    for (let k = 0; k <= n; k++) { const t = k / n * TAU; a.set([Math.cos(t) * SOI_M / KM, Math.sin(t) * SOI_M / KM, 0], k * 3); }
-    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3));
-    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xcfcac0, transparent: true, opacity: 0.3, dashSize: 4, gapSize: 3, depthWrite: false }));
-    l.computeLineDistances();
-    return l;
-  })();
-  scene.add(soiRing);
+  // ---------- the reference plane: the equator of the body you're looking at (the ecliptic for the Sun) ----------
+  // Faint rings at round distances, a brighter one where an orbit would keep pace with the body's spin (Earth's
+  // geostationary ring), spokes, the equator on the surface, and the fixed reference direction.
+  const eqGroup = new THREE.Group();
+  scene.add(eqGroup);
+  let eqFor = null, eqArrowTip = null;
+  const ringGeo = (R, n = 256) => {
+    const a = new Float32Array((n + 1) * 3);
+    for (let k = 0; k <= n; k++) { const t = k / n * TAU; a.set([Math.cos(t) * R, 0, -Math.sin(t) * R], k * 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(a, 3)); return g;
+  };
+  const niceStep = x => { const p = Math.pow(10, Math.floor(Math.log10(x))), m = x / p; return p * (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10); };
+  // the radius where a circular orbit keeps pace with the body's spin, if there is one inside its sphere of influence
+  const syncRadius = B => { if (B.locked || B.star) return NaN; const r = Math.cbrt(B.mu * (B.spin / TAU) ** 2); return r > B.R * 1.05 && r < B.soi * 0.9 ? r : NaN; };
+  function buildRefPlane(B) {
+    eqFor = B;
+    while (eqGroup.children.length) { const c = eqGroup.children.pop(); c.geometry.dispose(); }
+    const sun = B === SUN, step = sun ? AU : niceStep(B.R * 1.6), n = sun ? 5 : 6, out = step * n;
+    const line = (g, op, c = 0xc9a45c) => eqGroup.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: op, depthWrite: false })));
+    for (let k = 1; k <= n; k++) line(ringGeo(step * k / KM), 0.09);
+    const rs = syncRadius(B);
+    if (isFinite(rs)) line(ringGeo(rs / KM), 0.28);
+    const sp = [];
+    for (let k = 0; k < 12; k++) { const t = k / 12 * TAU; sp.push(Math.cos(t) * B.R / KM * 1.05, 0, -Math.sin(t) * B.R / KM * 1.05, Math.cos(t) * out / KM, 0, -Math.sin(t) * out / KM); }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(sp), 3));
+    eqGroup.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0xc9a45c, transparent: true, opacity: 0.05, depthWrite: false })));
+    if (!sun) line(ringGeo(B.R / KM * 1.002), 0.35, 0xe9c98a);        // the equator on the surface
+    // the reference direction, in the plane: from the surface out to a little beyond the body
+    const tip = sun ? 1.3 * AU : 2.2 * B.R, X = dirScene(B.X).applyQuaternion(eqQuat(B).invert());
+    const ag = new THREE.BufferGeometry(); ag.setAttribute("position", new THREE.BufferAttribute(new Float32Array([X.x * B.R / KM, X.y * B.R / KM, X.z * B.R / KM, X.x * tip / KM, X.y * tip / KM, X.z * tip / KM]), 3));
+    eqGroup.add(new THREE.Line(ag, new THREE.LineBasicMaterial({ color: 0xe9c98a, transparent: true, opacity: 0.45 })));
+    eqArrowTip = mul(B.X, tip * 1.02);
+    eqGroup.quaternion.copy(eqQuat(B));
+  }
+  const eqQuat = B => new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dirScene(B.Z).normalize());
 
-  // ---------- your orbit's plane against the Moon's ----------
-  // Two faint discs through Earth's centre, one in the plane of your orbit and one in the Moon's, and the line where
-  // they cross (the line of nodes). A transfer to the Moon is cheap only when the Moon is near that line as you arrive,
-  // so the markers where the line meets the Moon's orbit show how long until the Moon gets there.
+  // ---------- your orbit's plane against a moon's (or planet's) ----------
+  // Two faint discs through the centre of the body you orbit, one in the plane of your orbit and one in the plane of
+  // the target's orbit round that body, and the line where they cross (the line of nodes). A cheap transfer is only
+  // possible when the target is near that line as you arrive, so the markers where the line meets the target's orbit
+  // show how long until it gets there.
   const planeGroup = new THREE.Group();
   planeGroup.visible = false;
+  let planesOn = false;
   scene.add(planeGroup);
-  const PLANE_R = MOON_ORB.ra * 1.08 / KM;
   const discOf = (color, opacity) => {
     const g = new THREE.Group();
-    const fill = new THREE.Mesh(new THREE.CircleGeometry(PLANE_R, 160),
+    const fill = new THREE.Mesh(new THREE.CircleGeometry(1, 160),
       new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }));
     const n = 256, a = new Float32Array((n + 1) * 3);
-    for (let k = 0; k <= n; k++) { const t = k / n * TAU; a.set([Math.cos(t) * PLANE_R, Math.sin(t) * PLANE_R, 0], k * 3); }
+    for (let k = 0; k <= n; k++) { const t = k / n * TAU; a.set([Math.cos(t), Math.sin(t), 0], k * 3); }
     const rg = new THREE.BufferGeometry(); rg.setAttribute("position", new THREE.BufferAttribute(a, 3));
     const rim = new THREE.Line(rg, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false }));
-    // spokes every 30°, so the tilt of the disc reads in 3D
-    const sp = [];
-    for (let k = 0; k < 12; k++) { const t = k / 12 * TAU; sp.push(Math.cos(t) * earthR * 1.05, Math.sin(t) * earthR * 1.05, 0, Math.cos(t) * PLANE_R, Math.sin(t) * PLANE_R, 0); }
-    const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(sp), 3));
+    // spokes every 30°, so the tilt of the disc reads in 3D (from the body's surface, set when the scale changes)
+    const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(72), 3));
     const spokes = new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
     g.add(fill, rim, spokes);
+    g.spokes = sg;
     g.renderOrder = -1;
     planeGroup.add(g);
     return g;
   };
-  const craftDisc = discOf(0xf0d49a, 0.06), moonDisc = discOf(0x9fb8dc, 0.07);
+  const craftDisc = discOf(0xf0d49a, 0.06), targetDisc = discOf(0x9fb8dc, 0.07);
   const Z_AXIS = new THREE.Vector3(0, 0, 1);
   const alignDisc = (disc, W) => disc.quaternion.setFromUnitVectors(Z_AXIS, dirScene(W).normalize());
-  alignDisc(moonDisc, MOON_ORB.W);
+  let planeR = 1, planeInner = 0;
+  function sizeDiscs(R, inner) {
+    if (R === planeR && inner === planeInner) return;
+    planeR = R; planeInner = inner;
+    [craftDisc, targetDisc].forEach(d => {
+      d.scale.setScalar(R);
+      const p = d.spokes.attributes.position;
+      for (let k = 0; k < 12; k++) { const t = k / 12 * TAU, f = inner / R; p.setXYZ(2 * k, Math.cos(t) * f, Math.sin(t) * f, 0); p.setXYZ(2 * k + 1, Math.cos(t), Math.sin(t), 0); }
+      p.needsUpdate = true;
+    });
+  }
   const nodeLine = (() => {
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
     const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, dashSize: 3, gapSize: 2, depthWrite: false }));
@@ -1049,53 +1301,84 @@ select.field option { background: #0e121e; }
     const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
     l.frustumCulled = false; planeGroup.add(l); return l;
   })();
-  // angle between an Earth orbit's plane and the Moon's
-  const tiltToMoon = o => Math.acos(clamp(dot(o.W, MOON_ORB.W), -1, 1));
-  // Updates the planes for this frame and returns the labels to place: the wedge, and where the Moon crosses your plane.
+  // angle between an orbit's plane and a body's orbital plane (both round the same body)
+  const tiltTo = (o, T) => Math.acos(clamp(dot(o.W, T.orb.W), -1, 1));
+  const tiltToMoon = o => tiltTo(o, MOON);
+  // The body to compare planes with: the one picked under "Transfer to" if it circles the body you orbit, otherwise
+  // that body's best-known moon (or, round the Sun, Earth). Null round a body with no moons.
+  function planeTarget(B = sim.orbit.body) {
+    const T = transferTarget();
+    if (T && T.parent === B) return T;
+    if (T && B === SUN && T.parent && T.parent.parent === SUN) return T.parent;
+    return B === EARTH ? MOON : B === SUN ? EARTH : B.kids[0] || null;
+  }
+  // Updates the planes for this frame and returns the labels to place: the wedge, and where the target crosses your plane.
   function updatePlanes() {
-    const o = sim.orbit, mine = o.body === EARTH;
-    craftDisc.visible = mine;
-    const out = [];
-    const ang = mine ? tiltToMoon(o) : 0;
-    nodeLine.visible = wedge.visible = mine && ang > 0.1 * DEG && ang < 179.9 * DEG;
-    if (!mine) return out;
-    alignDisc(craftDisc, o.W);
-    if (!nodeLine.visible) { out.push({ text: "Your orbit lies in the Moon's plane", pos: toScene(mul(o.P, o.rp * 1.4)) }); return out; }
-    const n = unit(cross(o.W, MOON_ORB.W));          // along the line of nodes: where your plane crosses the Moon's
+    const o = sim.orbit, B = o.body, T = planeTarget(B), out = [];
+    planeGroup.visible = !!T;
+    if (!T) return out;
+    const c = B.pos;
+    planeGroup.position.copy(c);
+    sizeDiscs(T.orb.ra * 1.08 / KM, B.R * 1.05 / KM);
+    const PLANE_R = planeR * KM;
+    alignDisc(craftDisc, o.W); alignDisc(targetDisc, T.orb.W);
+    const ang = tiltTo(o, T);
+    nodeLine.visible = wedge.visible = ang > 0.1 * DEG && ang < 179.9 * DEG;
+    if (!nodeLine.visible) { out.push({ text: `Your orbit lies in ${poss(T)} plane`, pos: toScene(mul(o.P, o.rp * 1.4)).add(c) }); return out; }
+    const n = unit(cross(o.W, T.orb.W));             // along the line of nodes: where your plane crosses the target's
     const p = nodeLine.geometry.attributes.position;
-    const a = toScene(mul(n, PLANE_R * KM)), b = toScene(mul(n, -PLANE_R * KM));
+    const a = toScene(mul(n, PLANE_R)), b = toScene(mul(n, -PLANE_R));
     p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true;
+    nodeLine.material.dashSize = PLANE_R / KM * 0.012; nodeLine.material.gapSize = PLANE_R / KM * 0.008;
     nodeLine.computeLineDistances();
-    // the wedge: from your plane to the Moon's, square to the line of nodes, at a size that suits the zoom
-    const u1 = unit(cross(o.W, n)), u2 = unit(cross(MOON_ORB.W, n));
-    const R = clamp(camera.position.distanceTo(controls.target) * 0.16, earthR * 1.6, PLANE_R * 0.6) * KM;
+    // the wedge: from your plane to the target's, square to the line of nodes, at a size that suits the zoom
+    const u1 = unit(cross(o.W, n)), u2 = unit(cross(T.orb.W, n));
+    const R = clamp(camera.position.distanceTo(c) * 0.16, B.R / KM * 1.6, planeR * 0.6) * KM;
     const w = wedge.geometry.attributes.position, v = new THREE.Vector3();
-    toScene([0, 0, 0], v); w.setXYZ(0, v.x, v.y, v.z);
+    w.setXYZ(0, 0, 0, 0);
     for (let k = 0; k <= ARC_N; k++) {
       const f = k / ARC_N, s1 = Math.sin((1 - f) * ang) / Math.sin(ang), s2 = Math.sin(f * ang) / Math.sin(ang);
       toScene(mul(add(mul(u1, s1), mul(u2, s2)), R), v); w.setXYZ(k + 1, v.x, v.y, v.z);
     }
     w.setXYZ(ARC_N + 2, 0, 0, 0); w.needsUpdate = true;
     // name each disc partway out, square to the line of nodes, where the two are furthest apart
-    out.push({ text: "your orbit's plane", pos: toScene(mul(u1, PLANE_R * KM * 0.6)), minor: true });
-    out.push({ text: "the Moon's orbital plane", pos: toScene(mul(u2, PLANE_R * KM * 0.6)), minor: true });
+    out.push({ text: "your orbit's plane", pos: toScene(mul(u1, PLANE_R * 0.6)).add(c), minor: true });
+    out.push({ text: `${poss(T)} orbital plane`, pos: toScene(mul(u2, PLANE_R * 0.6)).add(c), minor: true });
     const mid = unit(add(u1, u2));
-    out.push({ text: `Planes ${(ang / DEG).toFixed(1)}° apart`, pos: toScene(mul(mid, R * 1.08)), key: "tilt" });
-    // where the Moon's orbit crosses your plane, and when the Moon next gets there
+    out.push({ text: `Planes ${(ang / DEG).toFixed(1)}° apart`, pos: toScene(mul(mid, R * 1.08)).add(c), key: "tilt" });
+    // where the target's orbit crosses your plane, and when it next gets there
     [n, mul(n, -1)].forEach(d => {
-      const nu = Math.atan2(dot(d, MOON_ORB.Q), dot(d, MOON_ORB.P));
-      out.push({ text: `Moon crosses your plane in ${fmtDur(timeToNu(MOON_ORB, sim.t, nu), true)}`, pos: toScene(stateAtNu(MOON_ORB, nu).r), key: "tilt", node: true });
+      const nu = Math.atan2(dot(d, T.orb.Q), dot(d, T.orb.P));
+      out.push({ text: `${The(T)} crosses your plane in ${fmtDur(timeToNu(T.orb, sim.t, nu), true)}`, pos: toScene(stateAtNu(T.orb, nu).r).add(c), key: "tilt", node: true });
     });
     return out;
   }
 
-  const moonPos = new THREE.Vector3();
-  function placeMoon() {
-    moonPos.copy(moonScene(sim.t));
-    moonMesh.position.copy(moonPos);
-    // the map's prime meridian (its centre) faces Earth
-    moonMesh.rotation.y = Math.atan2(moonPos.z, -moonPos.x);
-    soiRing.position.copy(moonPos); soiRing.quaternion.copy(camera.quaternion);
+  // Earth's spin: the angle of the prime meridian from the March equinox (Greenwich mean sidereal time)
+  const gmst = t => (280.46061837 + 360.98564736629 * t / DAY) * DEG;
+  // Moves every body to where it is now, seen from the body the camera looks at, and turns it on its axis.
+  const tmpQ = new THREE.Quaternion(), tmpV = new THREE.Vector3();
+  function placeBodies() {
+    setViewOrigin();
+    BODIES.forEach(B => sceneOf(helioPos(B, sim.t), B.pos));
+    BODIES.forEach(B => {
+      if (B.orbitLine) B.orbitLine.position.copy(B.parent.pos);
+      if (!B.g) return;
+      B.g.position.copy(B.pos);
+      if (B === EARTH) B.mesh.rotation.y = gmst(sim.t);
+      else if (B.locked) {
+        // the map's prime meridian (its centre) faces the planet
+        tmpV.copy(B.parent.pos).sub(B.pos).applyQuaternion(tmpQ.copy(B.g.quaternion).invert());
+        B.mesh.rotation.y = Math.atan2(-tmpV.z, tmpV.x);
+      } else B.mesh.rotation.y = (sim.t / B.spin % 1) * TAU;
+    });
+    sunMesh.position.copy(SUN.pos); sunLight.position.copy(SUN.pos);
+    sunGlow.position.copy(SUN.pos); corona.position.copy(SUN.pos);
+    const dSun = Math.max(camera.position.distanceTo(SUN.pos), SUN.R / KM);
+    sunGlow.scale.setScalar(Math.max(SUN.R / KM * 9, dSun * 0.05)); corona.scale.setScalar(Math.max(SUN.R / KM * 3.2, dSun * 0.012));
+    sunDir.copy(SUN.pos).sub(EARTH.pos).normalize();
+    if (eqFor !== viewBody) buildRefPlane(viewBody);
+    eqGroup.position.copy(viewBody.pos);
   }
 
   // orbit lines: a pool of Line objects reused each frame
@@ -1125,6 +1408,7 @@ select.field option { background: #0e121e; }
     markUsed++;
     m.className = "mark " + cls + (key && hlKey === key ? " hl" : "");
     m.hidden = false;
+    delete m.dataset.body;
     m.lastChild.textContent = text;
     return m;
   }
@@ -1149,8 +1433,12 @@ select.field option { background: #0e121e; }
     const t = -b - Math.sqrt(disc);
     return t > 0 && t < L;
   }
-  const ORIGIN = new THREE.Vector3();
-  const behindEarth = v => behindSphere(v, ORIGIN, earthR) || behindSphere(v, moonPos, moonR);
+  // hidden behind the body in view, the one you orbit, or one of their moons?
+  const behindEarth = v => {
+    const near = new Set([viewBody, sim.orbit.body, ...viewBody.kids, ...sim.orbit.body.kids]);
+    for (const B of near) if (B !== SUN && behindSphere(v, B.pos, B.R / KM)) return true;
+    return false;
+  };
   let placed = [];
   function place(el, v, dimBehind = true, minor = false) {
     const s = project(v, {});
@@ -1208,13 +1496,15 @@ select.field option { background: #0e121e; }
     svg.appendChild(h.stem);
     h.el.addEventListener("pointerdown", e => startHandleDrag(e, h));
   });
+  labelLayer.addEventListener("click", e => { const m = e.target.closest(".mark.body"); if (m && m.dataset.body) setFocus(byName[m.dataset.body]); });
   const ghost = document.createElement("div");
   ghost.className = "ghost"; ghost.innerHTML = "<span>+ add node</span>"; ghost.hidden = true;
   labelLayer.appendChild(ghost);
 
   // ---------- formatting ----------
   const nf0 = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
-  const fmtKm = km => !isFinite(km) ? "∞" : `${nf0.format(km)} km`;
+  // distances past 10 million km read better in astronomical units (1 AU, Earth's distance from the Sun)
+  const fmtKm = km => !isFinite(km) ? "∞" : Math.abs(km) >= 1e7 ? `${(km / AU).toFixed(Math.abs(km) >= 10 * AU ? 2 : 3)} AU` : `${nf0.format(km)} km`;
   const fmtSpeed = kms => `${kms.toFixed(3)} km/s`;
   const fmtDv = ms => `${nf0.format(Math.round(ms))} m/s`;
   const fmtDeg = r => isNaN(r) ? "—" : `${(r / DEG).toFixed(2)}°`;
@@ -1222,6 +1512,8 @@ select.field option { background: #0e121e; }
     if (!isFinite(s)) return "never";
     s = Math.max(0, s);
     const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), sec = Math.floor(s % 60);
+    if (s >= YEAR) { const y = Math.floor(s / YEAR); return `${y}y ${Math.floor((s - y * YEAR) / DAY)}d`; }
+    if (d >= 30) return `${d}d ${h}h`;
     if (d > 0) return `${d}d ${h}h ${String(m).padStart(2, "0")}m`;
     if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m${short ? "" : ` ${String(sec).padStart(2, "0")}s`}`;
     if (m > 0) return `${m}m ${String(sec).padStart(2, "0")}s`;
@@ -1231,36 +1523,46 @@ select.field option { background: #0e121e; }
     const d = Math.floor(t / 86400), h = Math.floor(t % 86400 / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60);
     return `T+ ${d}d ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
+  // the calendar date and time (UTC) of a moment on the clock
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtDate(t, withTime = true) {
+    const d = new Date(J2000_MS + t * 1000);
+    if (isNaN(d)) return "—";
+    const day = `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+    return withTime ? `${day} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")} UTC` : day;
+  }
 
   // ---------- elements panel ----------
+  // round the Sun the apsides have names of their own
+  const apName = B => B === SUN ? "Aphelion" : "Apoapsis", peName = B => B === SUN ? "Perihelion" : "Periapsis";
   const ROWS = [
     { g: "Shape" },
     { k: "body", name: "Orbiting", f: o => o.body.name,
-      x: "The body whose gravity steers you. Near the Moon, inside its <b>sphere of influence</b> (the dashed ring, reaching 66,100 km from its centre), the Moon's pull beats Earth's, so the simulator treats you as orbiting the Moon; everywhere else, Earth. Kerbal Space Program works the same way. All the numbers below are measured from that body's centre and surface." },
+      x: "The body whose gravity steers you. Each body has a <b>sphere of influence</b> (the dashed ring round it: 66,100 km for the Moon, 924,000 km for Earth, 48 million km for Jupiter): inside it, that body's pull counts and everything else is left out; leave it, and you are orbiting whatever it orbits, in the end the Sun. Kerbal Space Program works the same way. All the numbers below are measured from that body's centre and surface." },
     { k: "ap", name: "Apoapsis", mark: "ap", f: o => o.e >= 1 ? "none (escaping)" : o.ra > o.body.soi ? `${fmtKm(o.ra - o.body.R)} (beyond its influence)` : fmtKm(o.ra - o.body.R),
-      x: "The <b>highest point</b> of the orbit, shown as altitude above the surface. A <b>prograde</b> burn anywhere raises the far side of the orbit; burn at periapsis to raise apoapsis. Spacecraft move slowest here." },
-    { k: "pe", name: "Periapsis", mark: "pe", f: o => fmtKm(o.rp - o.body.R), warn: o => o.rp - o.body.R < (o.body === MOON ? 10 : 100),
-      x: "The <b>lowest point</b> of the orbit, where you move fastest. Below about 100 km the real atmosphere would drag you down (not simulated); below 0 km you hit the ground. Raise it with a prograde burn at apoapsis." },
-    { k: "a", name: "Semi-major axis", f: o => o.e >= 1 ? `${fmtKm(o.a)}` : fmtKm(o.a),
-      x: "Half the long axis of the ellipse, measured from Earth's centre: the average of the apoapsis and periapsis distances. It alone sets the <b>period</b> and the <b>energy</b> of the orbit. Negative for an escape path (hyperbola)." },
+      x: "The <b>highest point</b> of the orbit, shown as height above the surface. A <b>prograde</b> burn anywhere raises the far side of the orbit; burn at periapsis to raise apoapsis. Spacecraft move slowest here. Round the Sun it is called the <b>aphelion</b>, and the height is from the Sun's surface, so it is almost the distance from the Sun." },
+    { k: "pe", name: "Periapsis", mark: "pe", f: o => fmtKm(o.rp - o.body.R), warn: o => o.rp - o.body.R < o.body.low,
+      x: "The <b>lowest point</b> of the orbit, where you move fastest. Too low and you would hit air, rings or rock: about 100 km at Earth, 250 km at Venus. Raise it with a prograde burn at apoapsis. Round the Sun it is the <b>perihelion</b>: Parker Solar Probe, the closest anything has been, passes about 6.1 million km above the surface." },
+    { k: "a", name: "Semi-major axis", f: o => fmtKm(o.a),
+      x: "Half the long axis of the ellipse, measured from the body's centre: the average of the apoapsis and periapsis distances. It alone sets the <b>period</b> and the <b>energy</b> of the orbit. Negative for an escape path (hyperbola)." },
     { k: "e", name: "Eccentricity", f: o => o.e.toFixed(4),
       x: "How stretched the orbit is. <b>0</b> is a perfect circle, <b>0 to 1</b> an ellipse, <b>1</b> a parabola (just escaping) and <b>over 1</b> a hyperbola that never comes back." },
     { k: "T", name: "Period", f: o => o.e >= 1 ? "—" : fmtDur(o.period, true),
-      x: "Time for one lap. Kepler's third law: the period grows with the semi-major axis to the power 1.5. Low orbits take about 90 minutes; at 35,786 km it is one sidereal day (23h 56m), so a geostationary satellite keeps pace with Earth's spin." },
+      x: "Time for one lap. Kepler's third law: the period grows with the semi-major axis to the power 1.5. Low Earth orbits take about 90 minutes; at 35,786 km it is one sidereal day (23h 56m), so a geostationary satellite keeps pace with Earth's spin. Round the Sun, Earth takes a year and Neptune 165." },
     { g: "Orientation" },
     { k: "i", name: "Inclination", mark: "an", f: o => fmtDeg(o.i),
-      x: "The tilt of the orbit's plane against the equator. <b>0°</b> follows the equator, <b>90°</b> passes over the poles, over 90° goes round backwards (retrograde). Change it with a <b>normal</b> or <b>anti-normal</b> burn at the ascending or descending node. It is costly: 1° at low orbit takes about 135 m/s, which is why launch sites near the equator are prized." },
+      x: "The tilt of the orbit's plane against the equator of the body you orbit (round the Sun, against the <b>ecliptic</b>, the plane of Earth's orbit). <b>0°</b> follows the equator, <b>90°</b> passes over the poles, over 90° goes round backwards (retrograde), as Triton does round Neptune. Change it with a <b>normal</b> or <b>anti-normal</b> burn where the planes cross. It is costly: 1° at low Earth orbit takes about 135 m/s, which is why launch sites near the equator are prized." },
     { k: "raan", name: "Ascending node", mark: "an", f: o => o.equatorial ? "—" : fmtDeg(o.raan),
-      x: "Longitude of the ascending node: where the orbit crosses the equator heading north (<b>AN</b>), measured eastward from the fixed reference direction (the gold line marked ♈︎, toward the March equinox point among the stars). With inclination it fixes the orbit's plane in space. An orbit lying exactly in the equator has no ascending node, shown as —." },
-    { k: "tilt", name: "Tilt to Moon's orbit", mark: "tilt", f: o => o.body === MOON ? "—" : fmtDeg(tiltToMoon(o)),
-      x: "The angle between the plane of your orbit and the plane of the Moon's orbit. The two planes cross along a line through Earth, the <b>line of nodes</b>. A cheap transfer to the Moon stays in your plane, so it can only meet the Moon where the Moon's path crosses that plane: the Moon has to be near the line of nodes when you arrive. It passes each end once a month, about every 13.7 days, which is why a transfer can mean waiting days in orbit. Press <b>Planes</b> to see them. Launching at the right moment, as <b>Launch</b> does, puts the Moon in your plane from the start. (The Moon's tilt to the equator drifts between about 18° and 28.5° over 18.6 years; here it is fixed at 28.5°.)" },
+      x: "Longitude of the ascending node: where the orbit crosses the equator heading north (<b>AN</b>), measured eastward from a fixed reference direction (the gold line: for Earth and the Sun, ♈︎, toward the March equinox point among the stars; for other bodies, where their equator crosses Earth's). With inclination it fixes the orbit's plane in space. An orbit lying exactly in the equator has no ascending node, shown as —." },
+    { k: "tilt", name: "Tilt to target's orbit", mark: "tilt", f: o => { const T = planeTarget(o.body); return T ? `${fmtDeg(tiltTo(o, T))}` : "—"; },
+      x: "The angle between the plane of your orbit and the plane in which your target (picked under <b>Transfer to</b>, or else the best-known moon) circles the same body. The two planes cross along a line through its centre, the <b>line of nodes</b>. A cheap transfer stays in your plane, so it can only meet the target where the target's path crosses that plane: the target has to be near the line of nodes when you arrive. For the Moon that happens about every 13.7 days, which is why a transfer can mean waiting days in orbit. Press <b>Planes</b> to see them. Launching at the right moment, as <b>Launch</b> does, puts the Moon in your plane from the start." },
     { k: "w", name: "Arg. of periapsis", mark: "pe", f: o => isNaN(o.argp) ? "—" : fmtDeg(o.argp),
       x: "The angle, within the orbit's plane, from the ascending node round to periapsis: which way the ellipse points. Molniya orbits use 270° so their slow, high apoapsis hangs over the northern hemisphere. For an equatorial orbit this shows the longitude of periapsis instead; a perfectly circular orbit has no periapsis, shown as —." },
     { g: "Where you are", now: true },
     { k: "alt", name: "Altitude", now: true, f: (o, s) => fmtKm(len(s.r) - o.body.R),
       x: "Your height above the mean surface of the body you orbit, right now." },
     { k: "spd", name: "Speed", now: true, f: (o, s) => fmtSpeed(len(s.v)),
-      x: "How fast you are moving relative to the centre of the body you orbit (not its spinning surface). Low Earth orbit needs about 7.7 km/s; you speed up as you fall toward periapsis and slow as you climb to apoapsis, trading height for speed." },
+      x: "How fast you are moving relative to the centre of the body you orbit (not its spinning surface). Low Earth orbit needs about 7.7 km/s, and Earth itself goes round the Sun at about 30 km/s. You speed up as you fall toward periapsis and slow as you climb to apoapsis, trading height for speed." },
     { k: "nu", name: "True anomaly", now: true, f: (o, s) => fmtDeg(wrap(s.nu)),
       x: "Your angle around the orbit, measured at the centre of the body you orbit, from periapsis: 0° at periapsis, 180° at apoapsis." },
     { k: "tap", name: "Time to apoapsis", now: true, mark: "ap", f: o => o.e >= 1 ? "—" : fmtDur(timeToNu(o, sim.t, Math.PI)),
@@ -1269,7 +1571,9 @@ select.field option { background: #0e121e; }
       x: "How long until you next reach the lowest point. A burn there changes apoapsis." },
     { g: "Energy" },
     { k: "en", name: "Orbital energy", f: o => `${o.energy.toFixed(3)} MJ/kg`,
-      x: "Kinetic plus gravitational energy per kilogram of spacecraft. <b>Negative</b> means bound to Earth; <b>zero or more</b> means escape. It depends only on the semi-major axis (ε = −μ/2a). A burn changes it by roughly your speed times the Δv, so the same burn does more when you are moving fast: the <b>Oberth effect</b>." },
+      x: "Kinetic plus gravitational energy per kilogram of spacecraft. <b>Negative</b> means bound to the body you orbit; <b>zero or more</b> means escape. It depends only on the semi-major axis (ε = −μ/2a). A burn changes it by roughly your speed times the Δv, so the same burn does more when you are moving fast: the <b>Oberth effect</b>. That is why the burn to leave Earth for another planet is made low down, at periapsis, rather than once you are far out." },
+    { k: "vinf", name: "Speed beyond its pull", f: o => o.e >= 1 ? fmtSpeed(Math.sqrt(2 * o.energy)) : "—",
+      x: "On an escape path, the speed you will still have once you are clear of the body's gravity: the <b>hyperbolic excess speed</b>, v∞. Interplanetary missions are planned in it: about 3 km/s from Earth is enough for Mars, 9 km/s for Jupiter. Your speed past the body is that, added (as arrows) to the body's own speed round the Sun." },
     { k: "vesc", name: "Escape speed here", now: true, f: (o, s) => fmtSpeed(Math.sqrt(2 * o.mu / len(s.r))),
       x: "The speed that would carry you away from the body you orbit for good, from your current height, √2 times the circular orbit speed. Compare it with your speed: the gap is the Δv you need to leave." },
   ];
@@ -1306,15 +1610,20 @@ select.field option { background: #0e121e; }
     ah.hidden = !fin; if (ai) ah.textContent = ai.label;
     ROWS.forEach(r => {
       if (!r.el) return;
+      if (r.k === "ap" || r.k === "pe") r.el.children[0].textContent = (r.k === "ap" ? apName : peName)(o.body);
+      if (r.k === "tilt") { const T = planeTarget(o.body); r.el.children[0].textContent = T ? `Tilt to ${poss(T)} orbit` : "Tilt to a moon's orbit"; }
       const now = r.el.children[1], after = r.el.children[2];
       now.textContent = r.f(o, cur);
       now.classList.toggle("warn", !!(r.warn && r.warn(o)));
-      after.textContent = fin && !r.now ? r.f(fin, null) : "";
+      // the tilt row names one target for the body you orbit now: round another body it would mean a different one
+      after.textContent = fin && !r.now ? (r.k === "tilt" && planeTarget(fin.body) !== planeTarget(o.body) ? "—" : r.f(fin, null)) : "";
     });
   }
 
   // ---------- manoeuvre panel ----------
   const $ = id => document.getElementById(id);
+  // the body picked under "Transfer to"
+  const transferTarget = () => byName[$("xferTarget").value] || null;
   const editor = $("editor"), itinEl = $("itin");
   const dvRows = [...document.querySelectorAll(".dv")];
   function nodeIndex(n) { return sim.nodes.indexOf(n) + 1; }
@@ -1348,7 +1657,7 @@ select.field option { background: #0e121e; }
       if (k > 0) {
         const prev = traj[k - 1];
         if (prev.end === "soi") items.push({ ev: true, t: leg.t0, k, key: `soi:${k - 1}`,
-          what: B === MOON ? "Enters the Moon's influence" : "Leaves the Moon's influence", label: B === MOON ? "Round the Moon" : "Round Earth" });
+          what: B === prev.body.parent ? `Leaves ${poss(prev.body)} influence` : `Enters ${poss(B)} influence`, label: `Round ${B.the}` });
         else { const n = sim.nodes.find(x => !x.dead && x.leg === k - 1); if (n) items.push({ node: n, t: n.t, k }); }
         // the closest pass on this leg, unless the leg is just the final orbit going round and round
         const tEnd = Math.min(leg.t1, leg.endT), loops = k === traj.length - 1 && !leg.end && o.e < 1 && prev.end !== "soi";
@@ -1356,14 +1665,13 @@ select.field option { background: #0e121e; }
           const tp = leg.t0 + timeToNu(o, leg.t0, 0);
           if (tp > leg.t0 + 60 && tp < tEnd - 60) {
             const low = B === EARTH && o.rp - RE < 100;
-            items.push({ ev: true, t: tp, k, key: `pe:${k}`, label: `Closest to ${B === MOON ? "the Moon" : "Earth"}`, atmo: low,
+            items.push({ ev: true, t: tp, k, key: `pe:${k}`, label: `Closest to ${B.the}`, atmo: low,
               what: low ? `Dips into the atmosphere, ${fmtKm(o.rp - RE)} up` : `Closest to ${B.the}: ${fmtKm(o.rp - B.R)}` });
           }
         }
       }
-      if (leg.end === "impact") items.push({ ev: true, warn: true, t: leg.endT, k, key: `end:${k}`, what: `Hits ${B.the}`, label: `Round ${B === MOON ? "the Moon" : "Earth"}` });
-      else if (leg.end === "escape") items.push({ ev: true, t: leg.endT, k, key: `end:${k}`, what: "Leaves Earth's influence for good", label: "Round Earth" });
-      else if (leg.end === "more") items.push({ ev: true, t: leg.endT, k, key: `end:${k}`, what: B === MOON ? "Leaves the Moon's influence" : "Enters the Moon's influence", label: `Round ${B === MOON ? "the Moon" : "Earth"}` });
+      if (leg.end === "impact") items.push({ ev: true, warn: true, t: leg.endT, k, key: `end:${k}`, what: B === SUN ? "Falls into the Sun" : `Hits ${B.the}`, label: `Round ${B.the}` });
+      else if (leg.end === "more") items.push({ ev: true, t: leg.endT, k, key: `end:${k}`, what: "…and onward: the path is followed no further", label: `Round ${B.the}` });
     });
     items.sort((a, b) => a.t - b.t);
     // a dip into the atmosphere is where a real flight would end
@@ -1424,6 +1732,7 @@ select.field option { background: #0e121e; }
 
   function refreshPanel() {
     renderItinerary();
+    fillIncModes();
     $("nodeHint").textContent = sim.nodes.length
       ? (sim.nodes.length < MAX_NODES ? "Click or tap the orbit (or the dashed plan) to add another burn, or add one at:" : "That's the most burns at once. Execute or delete one first.")
       : "Click or tap anywhere on your orbit to place a burn (a manoeuvre node), or add one at:";
@@ -1462,18 +1771,17 @@ select.field option { background: #0e121e; }
 
   // leg of the trajectory that a node sits on (the orbit just before it)
   const legBefore = n => traj[n.leg] || traj[0];
-  // The leg the planners and quick-add buttons work on: where the plan takes you after its last burn. Round the Moon
-  // if you're there already or the burn keeps you there; back round Earth if the burn leaves the Moon; and if the path
-  // heads out to the Moon, the part round it (so circularising there captures you). Otherwise the last leg.
+  // The leg the planners and quick-add buttons work on: where the plan takes you after its last burn. If that burn
+  // climbs out of a moon's (or planet's) sphere of influence, the part round the body beyond; and if the path then
+  // heads into another sphere of influence (out to the Moon, or across to Mars), the part round that body, so that
+  // circularising there captures you. Otherwise the last leg.
   function planLegOf(legs, nodes) {
     const live = nodes.filter(n => !n.dead);
-    const first = Math.min(live.length ? live[live.length - 1].leg + 1 : 0, legs.length - 1), L = legs[first];
-    if (L.body === MOON) {
-      if (first === 0 || L.end !== "soi") return L;
-      return legs.find((l, k) => k > first && l.body === EARTH) || L;
-    }
-    for (let k = first + 1; k < legs.length; k++) if (legs[k].body === MOON && legs[k - 1].end === "soi") return legs[k];
-    return legs[legs.length - 1];
+    let k = Math.min(live.length ? live[live.length - 1].leg + 1 : 0, legs.length - 1);
+    const left = new Set();                      // bodies climbed out of: meeting one again on the way is no destination
+    if (k > 0) while (legs[k].end === "soi" && legs[k + 1] && legs[k + 1].body === legs[k].body.parent) left.add(legs[k++].body);
+    for (let j = k + 1; j < legs.length; j++) if (legs[j - 1].end === "soi" && legs[j].body.parent === legs[j - 1].body && !left.has(legs[j].body)) return legs[j];
+    return legs[k];
   }
   const planLeg = () => planLegOf(traj, sim.nodes);
   function burn(dv) {
@@ -1562,9 +1870,9 @@ select.field option { background: #0e121e; }
   function nuOfLine(o, which) {
     if (which === "ap") return o.e < 1 && o.e > 1e-7 ? Math.PI : NaN;
     if (which === "pe") return o.e > 1e-7 ? 0 : NaN;
-    // ascending/descending node: where the orbit's position has z = 0 heading north/south
+    // ascending/descending node: where the orbit crosses the body's equator (the ecliptic round the Sun) heading north/south
     if (o.equatorial) return NaN;
-    const nv = unit([-o.hv[1], o.hv[0], 0]);
+    const nv = o.nodeDir;
     const nuAN = Math.atan2(dot(nv, o.Q), dot(nv, o.P));
     return which === "an" ? nuAN : nuAN + Math.PI;
   }
@@ -1577,7 +1885,7 @@ select.field option { background: #0e121e; }
     return t < leg.endT ? t : NaN;
   }
   const WHY = { ap: "This orbit is circular, so it has no apoapsis to aim for.", pe: "This orbit is circular, so it has no periapsis to aim for.",
-    an: "This orbit lies in the equator's plane, so it never crosses it.", dn: "This orbit lies in the equator's plane, so it never crosses it." };
+    an: "This orbit lies in the equator's plane (round the Sun, the ecliptic's), so it never crosses it.", dn: "This orbit lies in the equator's plane (round the Sun, the ecliptic's), so it never crosses it." };
   document.querySelectorAll("#quickAdd button").forEach(b => b.addEventListener("click", () => {
     const leg = planLeg(), t = timeAt(leg, b.dataset.at);
     if (isNaN(t)) { toast(leg.end && !isNaN(nuOfLine(leg.orb, b.dataset.at)) ? "You'll crash or escape before you get there." : WHY[b.dataset.at]); return; }
@@ -1619,6 +1927,11 @@ select.field option { background: #0e121e; }
     toast(`Hohmann transfer: ${fmtDv(nodeDv(n1))} to start, ${n2 ? fmtDv(nodeDv(n2)) : "?"} to finish, ${fmtDur(tt, true)} apart. Total ${fmtDv(nodeDv(n1) + (n2 ? nodeDv(n2) : 0))}.`, 8000);
   });
   $("incPlan").addEventListener("click", () => {
+    if (incMode.value !== "tilt") {
+      const C = byName[incMode.value.slice(6)], B = planLeg().body;
+      matchPlane(C.orb.W, C === B ? (B === EARTH ? "the ecliptic" : `the plane of ${poss(B)} orbit`) : `${poss(C)} orbital plane`);
+      return;
+    }
     const target = parseFloat($("incTarget").value);
     if (!isFinite(target) || target < 0 || target > 180) { toast("Pick an inclination between 0° and 180°."); return; }
     const leg = planLeg(), o = leg.orb, iT = target * DEG;
@@ -1639,7 +1952,7 @@ select.field option { background: #0e121e; }
     const rot = (v, ang) => { const ca = Math.cos(ang), sa = Math.sin(ang); return add(add(mul(v, ca), mul(cross(rh, v), sa)), mul(rh, dot(rh, v) * (1 - ca))); };
     let best = null;
     for (const sign of [1, -1]) {
-      const v2 = rot(s.v, sign * Math.abs(iT - o.i)), oi = Math.acos(clamp(unit(cross(s.r, v2))[2], -1, 1));
+      const v2 = rot(s.v, sign * Math.abs(iT - o.i)), oi = Math.acos(clamp(dot(unit(cross(s.r, v2)), o.body.Z), -1, 1));
       if (!best || Math.abs(oi - iT) < best.err) best = { v2, err: Math.abs(oi - iT) };
     }
     const dv = sub(best.v2, s.v);
@@ -1678,7 +1991,7 @@ select.field option { background: #0e121e; }
   // it's done, and clicking a row swaps that plan in, so the path, the timeline and the Orbit panel all show it.
   let choice = null, applying = false;
   function closeChoice() { if (applying || !choice) return; choice = null; $("choice").hidden = true; }
-  function offerChoice(title, opts) {
+  function offerChoice(title, opts, extra = {}) {
     opts = opts.filter(o => o && o.nodes.length && sim.nodes.length + o.nodes.length <= MAX_NODES && isFinite(o.doneT)).filter(o => {
       const tr = trial(o.nodes);
       if (!tr.ok || tr.legs[tr.legs.length - 1].end === "impact") return false;
@@ -1693,11 +2006,12 @@ select.field option { background: #0e121e; }
     if (!opts.length) return false;
     const minDv = Math.min(...opts.map(o => o.dv)), minT = Math.min(...opts.map(o => o.doneT));
     opts.forEach(o => { o.cheap = o.dv - minDv < 1; o.quick = o.doneT - minT < 60; });
-    choice = { title, opts, idx: -1, ids: [] };
+    choice = { title, opts, idx: -1, ids: [], why: extra.why || "", pork: extra.pork || null };
     $("choiceTitle").textContent = title;
+    $("choiceWhy").innerHTML = choice.why; $("choiceWhyBox").hidden = !choice.why;
     const pref = opts.findIndex(o => o.def);
     applyChoice(pref >= 0 ? pref : opts.findIndex(o => o.cheap));
-    if (opts.length === 1) { choice = null; $("choice").hidden = true; return true; }
+    if (opts.length === 1 && !choice.pork) { choice = null; $("choice").hidden = true; return true; }
     $("choice").scrollIntoView({ block: "nearest" });
     return true;
   }
@@ -1735,7 +2049,67 @@ select.field option { background: #0e121e; }
       b.addEventListener("click", () => applyChoice(i));
       list.appendChild(b);
     });
+    drawPork();
   }
+  // ---------- the porkchop plot ----------
+  // Fuel for every departure date (across) and trip time (up), dark where it is cheap, with the offered ways marked.
+  // The cheap islands repeat once per synodic period; the ridge through the middle of an island is where the path
+  // would go exactly halfway round, which needs a costly change of plane.
+  const porkCv = $("porkCv");
+  function drawPork() {
+    const c = choice, box = $("pork");
+    box.hidden = !c || !c.pork;
+    if (box.hidden) return;
+    const pk = c.pork.pk, w = porkCv.clientWidth || 260, h = porkCv.clientHeight || 150, dpr = Math.min(2, window.devicePixelRatio || 1);
+    porkCv.width = Math.round(w * dpr); porkCv.height = Math.round(h * dpr);
+    const x = porkCv.getContext("2d");
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    x.fillStyle = "#0b0f1a"; x.fillRect(0, 0, w, h);
+    const fin = pk.cells.filter(q => isFinite(q.tot)).map(q => q.tot);
+    const lo = Math.min(...fin), hi = Math.min(Math.max(...fin), lo * 4 + 2);
+    const cw = w / pk.ND, ch = h / pk.NT;
+    pk.cells.forEach(q => {
+      if (!isFinite(q.tot)) return;
+      const f = clamp((q.tot - lo) / (hi - lo), 0, 1), g = Math.pow(1 - f, 1.6);
+      // cheap is bright brass, dear fades to the dark of the panel
+      x.fillStyle = `rgba(${Math.round(60 + 180 * g)}, ${Math.round(40 + 150 * g)}, ${Math.round(40 + 70 * g)}, ${0.25 + 0.75 * g})`;
+      x.fillRect(q.i * cw, h - (q.j + 1) * ch, cw + 0.6, ch + 0.6);
+    });
+    const X = td => (td - pk.t0) / pk.span * w, Y = tof => h - (tof - pk.tofLo) / (pk.tofHi - pk.tofLo) * h;
+    // a year's ticks along the bottom
+    x.strokeStyle = "rgba(232,226,210,0.18)"; x.lineWidth = 1;
+    const y0 = new Date(J2000_MS + pk.t0 * 1000).getUTCFullYear();
+    for (let y = y0; y < y0 + 40; y++) {
+      const t = (Date.UTC(y, 0, 1) - J2000_MS) / 1000;
+      if (t < pk.t0) continue; if (t > pk.t0 + pk.span) break;
+      x.beginPath(); x.moveTo(X(t), h); x.lineTo(X(t), h - 6); x.stroke();
+      x.fillStyle = "rgba(232,226,210,0.55)"; x.font = "9px IBM Plex Mono, monospace"; x.fillText(String(y), X(t) + 2, h - 2);
+    }
+    c.opts.forEach((o, i) => {
+      if (!o.at) return;
+      const px = X(o.at.td), py = Y(o.at.tof), on = i === c.idx;
+      x.beginPath(); x.arc(px, py, on ? 5 : 3.5, 0, TAU);
+      x.strokeStyle = on ? "#fff" : "#f0a46a"; x.lineWidth = on ? 2 : 1.5; x.stroke();
+    });
+    $("pkX").textContent = `departure ${fmtDate(pk.t0, false)} → ${fmtDate(pk.t0 + pk.span, false)} · trip ${fmtDur(pk.tofLo, true)} to ${fmtDur(pk.tofHi, true)} (up)`;
+    $("pkScale").textContent = `${(lo).toFixed(1)}–${hi.toFixed(0)} km/s`;
+  }
+  porkCv.addEventListener("click", e => {
+    const c = choice;
+    if (!c || !c.pork || !c.pick) return;
+    const r = porkCv.getBoundingClientRect(), pk = c.pork.pk;
+    const td = pk.t0 + (e.clientX - r.left) / r.width * pk.span, tof = pk.tofLo + (1 - (e.clientY - r.top) / r.height) * (pk.tofHi - pk.tofLo);
+    const got = c.pick(td, tof);
+    if (!got) { toast("That one can't be flown from this orbit: try a darker spot."); return; }
+    const o = { name: "Your pick from the plot", nodes: got.nodes, doneT: got.doneT, at: { td, tof }, mine: true,
+      note: `Leaves ${fmtDate(got.depT, false)}, ${fmtDur(got.ta - got.depT, true)} to get there.` };
+    o.dv = o.nodes.reduce((a, n) => a + specDv(n), 0); o.startT = Math.min(...o.nodes.map(n => n.t));
+    const k = c.opts.findIndex(x => x.mine);
+    if (k >= 0) c.opts[k] = o; else c.opts.push(o);
+    const minDv = Math.min(...c.opts.map(q => q.dv)), minT = Math.min(...c.opts.map(q => q.doneT));
+    c.opts.forEach(q => { q.cheap = q.dv - minDv < 1; q.quick = q.doneT - minT < 60; });
+    applyChoice(c.opts.indexOf(o));
+  });
   $("choiceKeep").addEventListener("click", () => { closeChoice(); toast("Plan kept. Execute burn 1 when you're ready, or adjust any burn first."); });
 
   // ---------- a circular orbit round the nearest body ----------
@@ -1760,7 +2134,7 @@ select.field option { background: #0e121e; }
     if (reach(tS) && alt(tS) > low && !near(tPe) && !near(tAp)) opts.push({ name: `Soonest: ${fmtKm(alt(tS))} up`, nodes: [circSpec(o, tS)], doneT: tS,
       note: "Burns straight away, at whatever height you're at. Part of the burn goes on turning your path level, which costs extra." });
     if (!offerChoice(`Circular orbit round ${B.the}`, opts)) toast(`Can't find a point to circularise round ${B.the} before this path ends.`);
-    else toast(choice ? `${choice.opts.length} ways to circularise round ${B.the}, compared in the Manoeuvre panel. Click one to see it on the map.` : `Circularising round ${B.the}: ${fmtDv(choiceDv())}.`, 8000);
+    else toast(choice ? `${ways()} to circularise round ${B.the}, compared in the Manoeuvre panel. Click one to see it on the map.` : `Circularising round ${B.the}: ${fmtDv(choiceDv())}.`, 8000);
   }
   const choiceDv = () => sim.nodes.length ? nodeDv(sim.nodes[sim.nodes.length - 1]) : 0;
   $("circPlan").addEventListener("click", planCircular);
@@ -1851,7 +2225,7 @@ select.field option { background: #0e121e; }
   ];
   function planMoon() {
     closeChoice();
-    const leg = planLeg(), o = leg.orb, peT = parseFloat($("moonPe").value), stay = $("moonStay").checked;
+    const leg = planLeg(), o = leg.orb, peT = parseFloat($("xferAlt").value), stay = $("xferStay").checked;
     if (!isFinite(peT) || peT < 10 || peT > 20000) { toast("Pick a height between 10 km and 20,000 km to pass the Moon at."); return; }
     if (o.body !== EARTH || o.e >= 1 || leg.end) { toast("A transfer to the Moon starts from a closed orbit round Earth that doesn't hit the ground. Fix this path first."); return; }
     if (o.ra > 150000) { toast("This orbit already reaches a long way out. The planner starts from orbits below 150,000 km."); return; }
@@ -1868,9 +2242,10 @@ select.field option { background: #0e121e; }
       opts.push({ name: sp.name, nodes, doneT: tPe,
         note: `Leaves in ${fmtDur(shot.t - sim.t, true)}, then ${fmtDur(tPe - shot.t, true)} to the Moon, passing ${fmtKm(ml.orb.rp - RM)} up${stay ? ", where burn 2 brakes into orbit" : ""}.` });
     }
-    if (offerChoice(stay ? "Ways to orbit the Moon" : "Ways to fly past the Moon", opts)) {
+    const why = `<p>The cheapest way out is one burn that stretches your orbit until its far end reaches the Moon's distance: half an ellipse, about 5 days, timed so the Moon is there as you arrive. Burn harder and you get there sooner, but you also arrive faster, so stopping costs more. The burn waits until the Moon will be in your orbit's plane when you arrive: press <b>Planes</b> to see why.</p>`;
+    if (offerChoice(stay ? "Ways to orbit the Moon" : "Ways to fly past the Moon", opts, { why })) {
       toast(choice
-        ? `${choice.opts.length} ways to the Moon, compared in the Manoeuvre panel: slower transfers need less fuel. Click one to see it on the map.`
+        ? `${ways()} to the Moon, compared in the Manoeuvre panel: slower transfers need less fuel. Click one to see it on the map.`
         : `Transfer to the Moon planned: ${fmtDv(choiceDv())}.`, 9000);
       return;
     }
@@ -1878,53 +2253,55 @@ select.field option { background: #0e121e; }
     const n = addNode(near.t, near.spec);
     if (n) toast(`Transfer to the Moon: ${fmtDv(nodeDv(n))} in ${fmtDur(near.t - sim.t, true)}. It comes close, but misses the Moon's sphere of influence: nudge the burn to get an encounter.`, 12000);
   }
-  $("moonPlan").addEventListener("click", planMoon);
 
-  // ---------- return to Earth ----------
-  // From round the Moon: one prograde burn, timed so that once the craft leaves the Moon's sphere of influence its
-  // orbit round Earth dips to the chosen height. The Moon moves at 1 km/s, and to fall back to Earth the craft has to
-  // leave it heading backwards against that motion, so only some burn times work cheaply; which ones depends on how
-  // the orbit round the Moon is tilted, and that changes over the month. Scans two weeks of burn times, finds the
-  // smallest burn that works at each, and offers the cheapest, the quickest, and a direct re-entry.
-  function returnFromMoon(leg, alt) {
-    const o = leg.orb, closed = o.e < 1 && !leg.end;
-    const tA = Math.max(leg.t0, sim.t) + 60, tB = closed ? tA + 14 * 86400 : Math.min(leg.endT, leg.t1) - 60;
+  // ---------- leaving a moon for the planet it circles ----------
+  // From round a moon (the Moon, Phobos, Europa…): one prograde burn, timed so that once the craft leaves the moon's
+  // sphere of influence its orbit round the planet dips to the chosen height. The moon itself is moving fast, and to
+  // fall inward the craft has to leave it heading backwards against that motion, so only some burn times work
+  // cheaply; which ones depends on how the orbit round the moon is tilted, and that changes as the moon goes round.
+  // Scans a few of the moon's laps (two weeks for the Moon) of burn times, finds the smallest burn that works at each,
+  // and offers the cheapest, the quickest, and, coming home to Earth, a direct re-entry.
+  function returnToParent(leg, alt) {
+    const o = leg.orb, M = o.body, P = M.parent, closed = o.e < 1 && !leg.end;
+    const tA = Math.max(leg.t0, sim.t) + 60, tB = closed ? tA + clamp(0.52 * M.orb.period, DAY / 4, 14 * DAY) : Math.min(leg.endT, leg.t1) - 60;
     if (!(tB > tA)) return [];
-    const exitNu = oM => radiusToNu(oM, SOI_M, true);
+    const exitNu = oM => radiusToNu(oM, M.soi, true);
     const evalTEI = (t, dvp) => {
-      const s = stateAt(o, t), oM = orbitFromState(s.r, add(s.v, mul(unit(s.v), dvp / 1000)), t, MOON);
-      if (oM.e < 1 && oM.ra < SOI_M) return null;
+      const s = stateAt(o, t), oM = orbitFromState(s.r, add(s.v, mul(unit(s.v), dvp / 1000)), t, M);
+      if (oM.e < 1 && oM.ra < M.soi) return null;
       const dt = timeToNu(oM, t, exitNu(oM));
-      if (!isFinite(dt) || (oM.rp < RM + 5 && timeToNu(oM, t, 0) < dt)) return null;   // never leaves, or hits the Moon first
-      const tx = t + dt, sx = stateAt(oM, tx), m = moonAt(tx);
-      const oE = orbitFromState(add(sx.r, m.r), add(sx.v, m.v), tx, EARTH);
+      if (!isFinite(dt) || (oM.rp < M.R + 1 && timeToNu(oM, t, 0) < dt)) return null;   // never leaves, or hits the moon first
+      const tx = t + dt, sx = stateAt(oM, tx), m = relState(M, tx);
+      const oE = orbitFromState(add(sx.r, m.r), add(sx.v, m.v), tx, P);
       return { rp: oE.rp, tPe: tx + timeToNu(oE, tx, 0), oE };
     };
+    // burns to try, from a few m/s to well past what leaving needs
+    const vM = Math.sqrt(P.mu / M.orb.a), vEsc = Math.sqrt(2 * M.mu / (M.R + 10)), hiDv = Math.max(3000, (vM + vEsc) * 1500);
     const GRID = [];
-    for (let d = 100; d <= 3000; d += 100) GRID.push(d);
+    for (let k = 0; k <= 44; k++) GRID.push(5 * Math.pow(hiDv / 5, k / 44));
     const rowsAt = t => GRID.map(dv => { const e = evalTEI(t, dv); return { dv, rp: e ? e.rp : null }; });
-    // the smallest prograde burn at time t that brings Earth periapsis to radius r
+    // the smallest prograde burn at time t that brings periapsis round the planet to radius r
     function solve(t, r, rows = rowsAt(t)) {
       for (let k = 1; k < rows.length; k++) {
         const a = rows[k - 1], b = rows[k];
         if (a.rp === null || b.rp === null || (a.rp - r) * (b.rp - r) > 0) continue;
         let lo = a.dv, hi = b.dv, flo = a.rp - r;
-        for (let it = 0; it < 22; it++) {
+        for (let it = 0; it < 26; it++) {
           const mid = (lo + hi) / 2, e = evalTEI(t, mid);
           if (!e) { lo = mid; continue; }
           if ((e.rp - r > 0) === (flo > 0)) { lo = mid; flo = e.rp - r; } else hi = mid;
         }
         const dv = (lo + hi) / 2, e = evalTEI(t, dv);
-        if (e && isFinite(e.tPe) && Math.abs(e.rp - r) < 20) return { t, dv, rp: e.rp, tPe: e.tPe, oE: e.oE };
+        if (e && isFinite(e.tPe) && Math.abs(e.rp - r) < Math.max(20, r * 0.002)) return { t, dv, rp: e.rp, tPe: e.tPe, oE: e.oE };
       }
       return null;
     }
-    const rT = RE + alt, rIn = RE + 60;
-    const capture = x => (x.oE.h / x.oE.rp - Math.sqrt(MU / x.oE.rp)) * 1000;   // braking into a circular orbit at periapsis
-    const step = closed ? o.period / 24 : (tB - tA) / 300;
+    const rT = P.R + alt, rIn = P.R + 60, earth = P === EARTH;
+    const capture = x => (x.oE.h / x.oE.rp - Math.sqrt(P.mu / x.oE.rp)) * 1000;   // braking into a circular orbit at periapsis
+    const step = closed ? Math.min(o.period / 24, (tB - tA) / 40) : (tB - tA) / 300;
     const home = [], entry = [];
     for (let t = tA; t <= tB; t += step) {
-      const rows = rowsAt(t), a = solve(t, rT, rows), b = solve(t, rIn, rows);
+      const rows = rowsAt(t), a = solve(t, rT, rows), b = earth ? solve(t, rIn, rows) : null;
       if (a) home.push(a);
       if (b) entry.push(b);
     }
@@ -1943,33 +2320,35 @@ select.field option { background: #0e121e; }
     };
     const cheap = polish(thrifty(home, x => x.dv + capture(x)), rT, x => x.dv + capture(x));
     const quick = polish(pickBy(home, x => x.tPe), rT, x => x.tPe);
-    const splash = polish(thrifty(entry, x => x.dv), rIn, x => x.dv);
+    const splash = earth ? polish(thrifty(entry, x => x.dv), rIn, x => x.dv) : null;
     const opts = [];
     const withCapture = (x, name, note, def) => {
       if (!x) return;
-      const tei = { t: x.t, pro: x.dv, nrm: 0, rad: 0 }, el = trialLeg(trial([tei])), tPe = el.body === EARTH ? timeAt(el, "pe") : NaN;
-      if (!isFinite(tPe) || Math.abs(el.orb.rp - rT) > 50) return;
+      const tei = { t: x.t, pro: x.dv, nrm: 0, rad: 0 }, el = trialLeg(trial([tei])), tPe = el.body === P ? timeAt(el, "pe") : NaN;
+      if (!isFinite(tPe) || Math.abs(el.orb.rp - rT) > Math.max(50, rT * 0.01)) return;
       opts.push({ name, nodes: [tei, circSpec(el.orb, tPe)], doneT: tPe, note: note(x, tPe), def });
     };
-    withCapture(cheap, cheap && cheap.t - sim.t > 86400 ? "Into orbit: wait for the cheapest window" : "Into orbit, using least fuel", (x, tPe) => `${x.t - sim.t > 86400 ? `Waits ${fmtDur(x.t - sim.t, true)} for the Moon to line up` : `Leaves in ${fmtDur(x.t - sim.t, true)}`}, then ${fmtDur(tPe - x.t, true)} home, and brakes into a ${fmtKm(alt)} orbit.`, true);
-    withCapture(quick, "Into orbit, as fast as possible", (x, tPe) => `Leaves in ${fmtDur(x.t - sim.t, true)}, ${fmtDur(tPe - x.t, true)} home, then brakes into a ${fmtKm(alt)} orbit.`);
+    const waitDays = x => x.t - sim.t > Math.min(DAY, 0.2 * M.orb.period);
+    withCapture(cheap, cheap && waitDays(cheap) ? "Into orbit: wait for the cheapest moment" : "Into orbit, using least fuel", (x, tPe) => `${waitDays(x) ? `Waits ${fmtDur(x.t - sim.t, true)} for ${M.the} to line up` : `Leaves in ${fmtDur(x.t - sim.t, true)}`}, then ${fmtDur(tPe - x.t, true)} down to ${P.the}, and brakes into a ${fmtKm(alt)} orbit.`, true);
+    withCapture(quick, "Into orbit, as fast as possible", (x, tPe) => `Leaves in ${fmtDur(x.t - sim.t, true)}, ${fmtDur(tPe - x.t, true)} down to ${P.the}, then brakes into a ${fmtKm(alt)} orbit.`);
     if (splash) opts.push({ name: "Re-entry, as Apollo did", nodes: [{ t: splash.t, pro: splash.dv, nrm: 0, rad: 0 }], doneT: splash.tPe,
       note: "No braking burn: it dips to 60 km and lets the air slow it down. This simulator has no air, so here the craft would sail on round Earth." });
     return opts;
   }
-  // From an orbit round Earth: drop periapsis to the chosen height, then brake into a circular orbit there. Dropping
-  // it from apoapsis costs least; doing it straight away saves the wait. Or skip the second burn and re-enter.
-  function returnRoundEarth(leg, alt) {
-    const o = leg.orb, rT = RE + alt, rIn = RE + 60, end = Math.min(leg.endT, leg.t1), opts = [];
+  // From a high orbit round a body down to a circular one at the chosen height: drop periapsis to it, then brake into
+  // a circular orbit there. Dropping it from apoapsis costs least; doing it straight away saves the wait. At Earth you
+  // can also skip the second burn and re-enter.
+  function comeDown(leg, alt) {
+    const o = leg.orb, B = o.body, rT = B.R + alt, rIn = B.R + 60, end = Math.min(leg.endT, leg.t1), opts = [];
     const reach = t => isFinite(t) && t > sim.t + 1 && t < end - 1;
     if (o.e >= 1) {
       const tPe = timeAt(leg, "pe");
-      if (!reach(tPe)) { toast("This path has already passed its closest point to Earth and is on its way out."); return null; }
-      opts.push({ name: `Brake into orbit at periapsis, ${fmtKm(o.rp - RE)} up`, nodes: [circSpec(o, tPe)], doneT: tPe,
+      if (!reach(tPe)) { toast(`This path has already passed its closest point to ${B.the} and is on its way out.`); return null; }
+      opts.push({ name: `Brake into orbit at periapsis, ${fmtKm(o.rp - B.R)} up`, nodes: [circSpec(o, tPe)], doneT: tPe,
         note: "Brakes where you pass closest and fastest, which is where braking does most." });
       return opts;
     }
-    if (o.rp < RE + 100) { toast("You're already coming down into the atmosphere."); return null; }
+    if (o.rp < B.R + B.low) { toast(`You're already coming down too low over ${B.the}.`); return null; }
     const tAp = o.e > 1e-3 ? timeAt(leg, "ap") : NaN, tNow = Math.max(leg.t0, sim.t) + 120;
     const pts = [];
     if (reach(tAp)) pts.push({ t: tAp, at: "apoapsis", soon: false });
@@ -1977,14 +2356,14 @@ select.field option { background: #0e121e; }
     pts.forEach(p => {
       const r1 = len(stateAt(o, p.t).r);
       // fly level so this point becomes the apoapsis of an orbit dipping to the target height
-      const drop = r => levelSpec(o, p.t, Math.sqrt(MU * 2 * r / (r1 * (r1 + r))));
+      const drop = r => levelSpec(o, p.t, Math.sqrt(B.mu * 2 * r / (r1 * (r1 + r))));
       if (r1 > rT + 20) {
         const b1 = drop(rT), el = trialLeg(trial([b1])), tPe = timeAt(el, "pe");
-        if (el.body === EARTH && isFinite(tPe)) opts.push({ name: p.soon ? "Into orbit, starting now" : "Into orbit, starting from apoapsis",
+        if (el.body === B && isFinite(tPe)) opts.push({ name: p.soon ? "Into orbit, starting now" : "Into orbit, starting from apoapsis",
           nodes: [b1, circSpec(el.orb, tPe)], doneT: tPe, def: !p.soon || !reach(tAp),
           note: `Drops the low point to ${fmtKm(alt)}${p.soon ? " now" : " from the highest point, where it costs least"}, then brakes into a circular orbit there.` });
       }
-      if (!p.soon || !reach(tAp)) {
+      if (B === EARTH && (!p.soon || !reach(tAp))) {
         const b = drop(rIn), el = trialLeg(trial([b])), tPe = timeAt(el, "pe");
         if (el.body === EARTH && isFinite(tPe)) opts.push({ name: "Re-entry, no braking burn", nodes: [b], doneT: tPe,
           note: "One burn drops the low point to 60 km, where the air would slow the craft down. This simulator has no air, so here it would sail on round." });
@@ -1993,19 +2372,511 @@ select.field option { background: #0e121e; }
     if (!opts.length) toast(`You're already about as low as a ${fmtKm(alt)} orbit.`);
     return opts.length ? opts : null;
   }
-  function planReturn() {
-    closeChoice();
-    const alt = parseFloat($("retAlt").value);
-    if (!isFinite(alt) || alt < 150 || alt > 5000) { toast("Pick an orbit height between 150 km and 5,000 km to return to."); return; }
-    if (!freeSlots(1)) return;
-    const leg = planLeg();
-    if (leg.end === "impact") { toast("This path hits the ground first. Fix it before planning the way home."); return; }
-    const opts = leg.body === MOON ? returnFromMoon(leg, alt) : returnRoundEarth(leg, alt);
-    if (!opts) return;
-    if (!offerChoice("Ways home to Earth", opts)) { toast(leg.body === MOON ? "Couldn't find a way back to Earth from this path round the Moon in the next two weeks." : "Couldn't find a way down from this orbit."); return; }
-    toast(choice ? `${choice.opts.length} ways home, compared in the Manoeuvre panel. Click one to see it on the map.` : "Way home planned.", 9000);
+
+  // ---------- Lambert's problem ----------
+  // The orbit (round a body of gravity mu) that goes from r1 to r2 in time tof: prograde about the axis n (the way the
+  // planets go) or the other way round. Universal variables, one revolution at most (Curtis, algorithm 5.2).
+  const stC = z => z > 1e-6 ? (1 - Math.cos(Math.sqrt(z))) / z : z < -1e-6 ? (Math.cosh(Math.sqrt(-z)) - 1) / -z : 0.5 - z / 24 + z * z / 720;
+  const stS = z => { if (z > 1e-6) { const q = Math.sqrt(z); return (q - Math.sin(q)) / (q * q * q); } if (z < -1e-6) { const q = Math.sqrt(-z); return (Math.sinh(q) - q) / (q * q * q); } return 1 / 6 - z / 120 + z * z / 5040; };
+  function lambert(r1, r2, tof, mu, n, pro = true) {
+    const R1 = len(r1), R2 = len(r2);
+    let th = Math.acos(clamp(dot(r1, r2) / (R1 * R2), -1, 1));
+    if ((dot(cross(r1, r2), n) >= 0) !== pro) th = TAU - th;
+    const A = Math.sin(th) * Math.sqrt(R1 * R2 / (1 - Math.cos(th)));
+    if (!isFinite(A) || Math.abs(A) < 1e-9 * Math.sqrt(R1 * R2)) return null;
+    const y = z => R1 + R2 + A * (z * stS(z) - 1) / Math.sqrt(stC(z));
+    const sm = Math.sqrt(mu) * tof;
+    const F = z => { const yz = y(z); return yz < 0 ? -Infinity : Math.pow(yz / stC(z), 1.5) * stS(z) + A * Math.sqrt(yz) - sm; };
+    let lo = -50, hi = TAU * TAU - 1e-7;
+    while (F(lo) > 0 && lo > -1e7) lo *= 4;
+    for (let k = 0; k < 100; k++) { const mid = (lo + hi) / 2; if (F(mid) > 0) hi = mid; else lo = mid; if (hi - lo < 1e-13) break; }
+    const z = (lo + hi) / 2, yz = y(z);
+    if (!(yz > 0)) return null;
+    const f = 1 - yz / R1, g = A * Math.sqrt(yz / mu), gd = 1 - yz / R2;
+    return { v1: mul(sub(r2, mul(r1, f)), 1 / g), v2: mul(sub(mul(r2, gd), r1), 1 / g), angle: th };
   }
-  $("retPlan").addEventListener("click", planReturn);
+
+  // ---------- leaving a body for somewhere else ----------
+  // The velocity needed at r to leave on a hyperbola whose speed beyond the body's pull is vinf (a vector): the path
+  // lies in the plane of r and vinf, with whatever eccentricity makes its asymptote point along vinf.
+  // Solves J x = b, where J is given as its three columns (Cramer's rule); null if J is singular.
+  function solve3(J, b) {
+    const d = dot(J[0], cross(J[1], J[2]));
+    if (!isFinite(d) || Math.abs(d) < 1e-30) return null;
+    return [dot(b, cross(J[1], J[2])) / d, dot(J[0], cross(b, J[2])) / d, dot(J[0], cross(J[1], b)) / d];
+  }
+  function departVel(r, vinf, mu) {
+    const R = len(r), vi = len(vinf), rh = mul(r, 1 / R), uh = mul(vinf, 1 / vi);
+    const phi = Math.acos(clamp(dot(rh, uh), -1, 1));
+    if (phi < 1e-4 || phi > Math.PI - 1e-4) return null;
+    const n = unit(cross(rh, uh)), a = -mu / (vi * vi);
+    const rad = e => { const nu = Math.acos(-1 / e) - phi; return -a * (e * e - 1) / (1 + e * Math.cos(nu)); };
+    let lo = 1 + 1e-12, hi = 2;
+    while (rad(hi) < R && hi < 1e9) hi *= 2;
+    for (let k = 0; k < 80; k++) { const m = (lo + hi) / 2; if (rad(m) < R) lo = m; else hi = m; }
+    const e = (lo + hi) / 2, nu = Math.acos(-1 / e) - phi, p = a * (1 - e * e);
+    const t = cross(n, rh), P = sub(mul(rh, Math.cos(nu)), mul(t, Math.sin(nu))), Q = cross(n, P), k = Math.sqrt(mu / p);
+    return add(mul(P, -k * Math.sin(nu)), mul(Q, k * (e + Math.cos(nu))));
+  }
+  // The cheapest moment on orbit o between tA and tB to leave on such a hyperbola, and the velocity to leave with.
+  function bestDeparture(o, vinf, tA, tB) {
+    const cost = t => { const s = stateAt(o, t), v = departVel(s.r, vinf, o.mu); return v ? { t, s, v, dv: len(sub(v, s.v)) } : { t, dv: Infinity }; };
+    const n = 120, step = (tB - tA) / n;
+    let best = null;
+    for (let k = 0; k <= n; k++) { const c = cost(tA + k * step); if (!best || c.dv < best.dv) best = c; }
+    let lo = Math.max(tA, best.t - step), hi = Math.min(tB, best.t + step);
+    for (let k = 0; k < 40; k++) { const m1 = lo + (hi - lo) * 0.382, m2 = lo + (hi - lo) * 0.618; if (cost(m1).dv < cost(m2).dv) hi = m2; else lo = m1; }
+    const c = cost((lo + hi) / 2);
+    return c.dv <= best.dv ? c : best;
+  }
+  // Where leaving B at time t with velocity v (relative to B) takes the craft as it crosses the edge of B's sphere of
+  // influence: the time, and the state relative to B's parent.
+  function exitState(B, t, r, v) {
+    const oD = orbitFromState(r, v, t, B), dt = timeToNu(oD, t, radiusToNu(oD, B.soi, true));
+    if (!isFinite(dt)) return null;
+    const tx = t + dt, sx = stateAt(oD, tx), b = relState(B, tx);
+    return { t: tx, r: add(sx.r, b.r), v: add(sx.v, b.v) };
+  }
+  // The point to aim at beside T, arriving at ta with relative velocity vinfA, so the path past it bends round to a
+  // periapsis of radius rp: offset square to the approach by the impact parameter, on the side that makes the orbit
+  // there go round the way T spins (the cheapest way to end up in a low-tilt orbit).
+  function aimPoint(T, ta, vinfA, rp) {
+    const vi = len(vinfA), b = rp * Math.sqrt(1 + 2 * T.mu / (rp * vi * vi));
+    let d = cross(vinfA, T.Z); if (len(d) < 1e-9 * vi) d = cross(vinfA, [0, 0, 1]);
+    return add(relState(T, ta).r, mul(unit(d), b));
+  }
+  // Nudges the aim until the real path past T has the chosen periapsis radius rpT. aimed(k) re-plans the burns for an
+  // offset scaled by k and returns their specs; returns the specs and the leg round T, or null.
+  function tunePass(T, rpT, aimed) {
+    let k = 1, got = null;
+    for (let it = 0; it < 7; it++) {
+      const specs = aimed(k);
+      if (!specs) return got;
+      const tr = trial(specs), L = tr.legs.find(l => l.body === T && l.t0 > sim.t);
+      if (!L) return got;
+      got = { specs, L };
+      if (Math.abs(L.orb.rp - rpT) < Math.max(1, rpT * 0.002)) break;
+      k *= clamp(rpT / Math.max(L.orb.rp, 1), 0.3, 3) ** (L.orb.rp > T.R ? 1 : 0.5);
+    }
+    return got;
+  }
+  // "3 ways" or "1 way", for the toasts that announce a choice
+  const ways = () => choice.opts.length === 1 ? "1 way" : `${choice.opts.length} ways`;
+  const kmps = x => `${x.toFixed(2)} km/s`;
+
+  // ---------- across to a neighbour: planet to planet, or moon to moon ----------
+  // Leave on a hyperbola from a parking orbit round B, coast round the parent on a Lambert arc, and pass the target T at
+  // the chosen height (braking into orbit there if asked). Departure date and trip time are searched over the next
+  // synodic period (the time it takes the two to line up the same way again), and the plan is realised on the real
+  // patched-conic path: the burn from the parking orbit is corrected until the path leaving B's sphere of influence
+  // hits the aim point beside T.
+  function realiseSibling(leg, T, td, ta, pro, rpT, stay) {
+    const o = leg.orb, B = o.body, P = B.parent, n = B.orb.W;
+    const win = clamp(o.period * 1.05, 1800, 3 * DAY), tLo = Math.max(sim.t, leg.t0) + 120;
+    const sB = relState(B, td), lam0 = lambert(sB.r, relState(T, ta).r, ta - td, P.mu, n, pro);
+    if (!lam0) return null;
+    let vinf = sub(lam0.v1, sB.v), vinfA = sub(lam0.v2, relState(T, ta).v), dep = null;
+    // Find the burn at the parking orbit that, after climbing out of B's sphere of influence, lands on aimAt() at ta.
+    // The first time, a simple fix-up (re-aim by the miss) settles the moment to burn; after that, and to finish,
+    // Newton's method on the burn itself at that moment, which copes where B's pull is still strong at the edge of
+    // its sphere of influence (a small moon, a slow departure).
+    let settled = false;
+    const solveFor = aimAt => {
+      if (!settled) {
+        let best = null;
+        for (let it = 0; it < 6; it++) {
+          dep = bestDeparture(o, vinf, Math.max(tLo, td - win), Math.max(tLo + 600, td + win));
+          if (!isFinite(dep.dv)) return false;
+          const ex = exitState(B, dep.t, dep.s.r, dep.v);
+          if (!ex || ex.t >= ta - 60) return false;
+          const lam = lambert(ex.r, aimAt(), ta - ex.t, P.mu, n, pro);
+          if (!lam) return false;
+          const miss = sub(lam.v1, ex.v);
+          if (!best || len(miss) < best.m) best = { dep, m: len(miss) };
+          vinf = add(vinf, miss); vinfA = sub(lam.v2, relState(T, ta).v);
+          if (len(miss) < 1e-6) break;
+        }
+        dep = best.dep; settled = true;            // keep the closest, in case the fix-up started to wander
+      }
+      const F = v => {
+        const ex = exitState(B, dep.t, dep.s.r, v);
+        if (!ex || ex.t >= ta - 60) return null;
+        const lam = lambert(ex.r, aimAt(), ta - ex.t, P.mu, n, pro);
+        if (!lam) return null;
+        return { f: sub(lam.v1, ex.v), vA: sub(lam.v2, relState(T, ta).v) };
+      };
+      let v = dep.v, cur = F(v);
+      if (!cur) return false;
+      for (let it = 0; it < 25 && len(cur.f) > 1e-7; it++) {
+        const h = 1e-5, J = [0, 1, 2].map(i => { const e = [0, 0, 0]; e[i] = h; const g = F(add(v, e)); return g && mul(sub(g.f, cur.f), 1 / h); });
+        if (J.some(c => !c)) return false;
+        let dx = solve3(J, mul(cur.f, -1));
+        if (!dx) return false;
+        const lim = 0.3 * len(sub(v, dep.s.v)) + 0.05;
+        if (len(dx) > lim) dx = mul(dx, lim / len(dx));
+        let moved = false;                                  // back off along the step until the miss shrinks
+        for (let a = 1; a > 1e-3; a /= 2) {
+          const v2 = add(v, mul(dx, a)), nx = F(v2);
+          if (nx && len(nx.f) < len(cur.f)) { v = v2; cur = nx; moved = true; break; }
+        }
+        if (!moved) return false;
+      }
+      if (len(cur.f) > 1e-5) return false;
+      vinfA = cur.vA;
+      dep = { ...dep, v, dv: len(sub(v, dep.s.v)) };
+      return true;
+    };
+    if (!solveFor(() => relState(T, ta).r)) return null;
+    const got = tunePass(T, rpT, k => solveFor(() => aimPoint(T, ta, vinfA, rpT * k)) ? [burnSpec(o, dep.t, sub(dep.v, dep.s.v))] : null);
+    if (!got || got.L.orb.rp < T.R) return null;
+    const L = got.L, tPe = L.t0 + timeToNu(L.orb, L.t0, 0), nodes = [...got.specs];
+    if (stay) nodes.push(circSpec(L.orb, tPe));
+    return { nodes, doneT: tPe, depT: nodes[0].t, ta: L.t0, vinfD: len(vinf), vinfA: len(vinfA), dvD: specDv(nodes[0]), dvA: stay ? specDv(nodes[1]) : 0, pass: L.orb };
+  }
+  // The same, starting from an orbit round the parent itself (a craft already out between the planets, or round
+  // Jupiter heading for one of its moons): one Lambert burn, aimed beside the target.
+  function realiseDirect(leg, T, tb, ta, pro, rpT, stay) {
+    const o = leg.orb, P = o.body, s = stateAt(o, tb);
+    let vinfA = null, last = null;
+    const burnTo = aim => { const lam = lambert(s.r, aim, ta - tb, P.mu, o.W, pro); if (!lam) return null; vinfA = sub(lam.v2, relState(T, ta).v); last = lam; return [burnSpec(o, tb, sub(lam.v1, s.v))]; };
+    if (!burnTo(relState(T, ta).r)) return null;
+    const got = tunePass(T, rpT, k => burnTo(aimPoint(T, ta, vinfA, rpT * k)));
+    if (!got || got.L.orb.rp < T.R) return null;
+    const L = got.L, tPe = L.t0 + timeToNu(L.orb, L.t0, 0), nodes = [...got.specs];
+    if (stay) nodes.push(circSpec(L.orb, tPe));
+    return { nodes, doneT: tPe, depT: tb, ta: L.t0, vinfA: len(vinfA), dvD: specDv(nodes[0]), dvA: stay ? specDv(nodes[1]) : 0, pass: L.orb };
+  }
+
+  // The fuel for every departure time and trip time in a grid: the porkchop plot. cost(td, tof) gives the cheaper of
+  // going round prograde or retrograde. Then the cheapest, the soonest and the quicker trips are picked from it and
+  // polished by a pattern search.
+  function porkchop(t0, span, tofLo, tofHi, cost) {
+    const ND = 84, NT = 48, cells = [];
+    for (let i = 0; i < ND; i++) for (let j = 0; j < NT; j++) {
+      const td = t0 + span * i / (ND - 1), tof = tofLo + (tofHi - tofLo) * j / (NT - 1), c = cost(td, tof);
+      cells.push(c ? { i, j, ...c } : { i, j, td, tof, tot: Infinity });
+    }
+    const dT = span / (ND - 1), dF = (tofHi - tofLo) / (NT - 1);
+    const polish = (c, ok) => {
+      let best = c, sd = dT, sf = dF;
+      for (let it = 0; it < 30 && (sd > 60 || sf > 60); it++) {
+        let moved = false;
+        for (const [a, b] of [[sd, 0], [-sd, 0], [0, sf], [0, -sf], [sd, sf], [-sd, -sf], [sd, -sf], [-sd, sf]]) {
+          const td = best.td + a, tof = best.tof + b;
+          if (td < t0 || tof < tofLo * 0.8 || !ok(td, tof)) continue;
+          const x = cost(td, tof);
+          if (x && x.tot < best.tot - 1e-6) { best = x; moved = true; }
+        }
+        if (!moved) { sd /= 2; sf /= 2; }
+      }
+      return best;
+    };
+    const pick = ok => { const c = pickBy(cells.filter(c => isFinite(c.tot) && ok(c.td, c.tof)), c => c.tot); return c ? polish(c, ok) : null; };
+    return { cells, ND, NT, t0, span, tofLo, tofHi, pick };
+  }
+
+  function planSibling(T, leg, alt, stay) {
+    const o = leg.orb, B = o.body, P = B.parent, rpT = T.R + alt;
+    if (o.e >= 1 || leg.end || o.ra > B.soi * 0.5) { toast(`A transfer to ${T.the} starts from a closed orbit well inside ${poss(B)} sphere of influence. Fix this path first.`); return; }
+    if (!freeSlots(stay ? 2 : 1)) return;
+    const syn = 1 / Math.abs(1 / B.orb.period - 1 / T.orb.period), aT = (B.orb.a + T.orb.a) / 2, tH = Math.PI * Math.sqrt(aT ** 3 / P.mu);
+    const t0 = Math.max(sim.t, leg.t0) + Math.max(1800, o.period), span = Math.min(syn * 1.1, 6 * YEAR);
+    const r0 = o.rp, vp0 = Math.sqrt(o.mu * (2 / r0 - 1 / o.a));
+    // leaving from low down, at periapsis speed; and if the way out (v∞) points out of your orbit's plane by δ, the
+    // burn has to turn the path by about δ as well
+    const dep = (v, sd = 0) => { const vh = Math.sqrt(v * v + 2 * B.mu / r0); return Math.sqrt(vp0 * vp0 + vh * vh - 2 * vp0 * vh * Math.sqrt(1 - sd * sd)); };
+    const brake = v => stay ? Math.sqrt(v * v + 2 * T.mu / rpT) - Math.sqrt(T.mu / rpT) : 0;
+    const cost = (td, tof) => {
+      const sB = relState(B, td), sT = relState(T, td + tof);
+      let best = null;
+      for (const pro of [true, false]) {
+        const lam = lambert(sB.r, sT.r, tof, P.mu, B.orb.W, pro);
+        if (!lam) continue;
+        const vi = sub(lam.v1, sB.v), vD = len(vi), vA = len(sub(lam.v2, sT.v)), tot = dep(vD, dot(vi, o.W) / vD) + brake(vA);
+        if (isFinite(tot) && (!best || tot < best.tot)) best = { td, tof, pro, vD, vA, tot, angle: lam.angle };
+      }
+      return best;
+    };
+    const pk = porkchop(t0, span, tH * 0.3, tH * 1.5, cost);
+    // the cheapest, but from the first window if it is within 2% of the best later one
+    let cheap = pk.pick(() => true);
+    if (!cheap) { toast(`Couldn't find a way to ${T.the} in the next ${fmtDur(span, true)}.`); return; }
+    const first = pk.pick(td => td < t0 + syn * 0.55);
+    if (first && first.tot <= cheap.tot * 1.02 + 0.05) cheap = first;
+    const cands = [{ c: cheap, name: Math.abs(cheap.angle / DEG - 180) < 25 ? "Least fuel: close to a Hohmann transfer" : "Least fuel", def: true, kind: "cheap" }];
+    const soonEnd = t0 + Math.max(syn * 0.03, Math.min(3 * DAY, syn * 0.1));
+    if (cheap.td > soonEnd) {
+      const now = pk.pick(td => td <= soonEnd);
+      if (now && now.tot <= cheap.tot * 1.02 + 0.02) cands[0].c = now;   // as cheap to go now: then that is the window
+      else cands.push({ c: now, name: "Leave now, without waiting for the window", kind: "now" });
+    }
+    const near = td => Math.abs(td - cheap.td) < syn * 0.3;
+    cands.push({ c: pk.pick((td, tof) => near(td) && tof <= cheap.tof * 0.7), name: "Faster", kind: "fast" });
+    cands.push({ c: pk.pick((td, tof) => near(td) && tof <= cheap.tof * 0.45), name: "Much faster", kind: "faster" });
+    const opts = [];
+    cands.forEach(k => {
+      const c = k.c;
+      if (!c || !isFinite(c.tot) || c.tot > 60 || c.tot > cheap.tot * 2.5) return;   // nothing absurd
+      const r = realiseSibling(leg, T, c.td, c.td + c.tof, c.pro, rpT, stay);
+      if (!r) return;
+      const turn = r.dvD / 1000 - dep(r.vinfD) + 0.0;
+      const name = k.kind === "fast" || k.kind === "faster" ? `${k.name}: ${fmtDur(r.ta - r.depT, true)} there` : k.name;
+      opts.push({ name, nodes: r.nodes, doneT: r.doneT, def: k.def, at: { td: c.td, tof: c.tof },
+        note: `Leaves ${fmtDate(r.depT, false)}${r.depT - sim.t > 2 * DAY ? `, in ${fmtDur(r.depT - sim.t, true)}` : ""}, and takes ${fmtDur(r.ta - r.depT, true)}. Leaves ${B.the} at ${kmps(r.vinfD)} beyond its pull and meets ${T.the} at ${kmps(r.vinfA)}${stay ? `, braking ${fmtDv(r.dvA)} into orbit` : ""}.${turn > 0.05 ? ` Your orbit is tilted from the way out, so ${fmtDv(turn * 1000)} of the first burn goes on turning${B === EARTH ? ": launching into the right plane avoids that" : ""}.` : ""}` });
+    });
+    // going inward by going out first: the bi-elliptic idea, honestly compared
+    if (P === SUN && T.orb.a < B.orb.a * 0.6) {
+      const bi = realiseBiElliptic(leg, T, 5.2 * AU, rpT, stay);
+      if (bi) opts.push(bi);
+    }
+    const inward = T.orb.a < B.orb.a;
+    const why = `<p><b>Why wait for a window?</b> ${B.name} and ${T.name} line up the same way once every ${fmtDur(syn, true)}: the <b>synodic period</b>. The cheapest path is close to a <b>Hohmann transfer</b>, half an ellipse round ${P.the} that just touches both orbits and takes about ${fmtDur(tH, true)}. It only works if ${T.name} will be at the far end when you get there, so it can only start in a short <b>launch window</b>, once per synodic period.</p>
+      <p><b>Why not go faster?</b> A quicker path is a fatter ellipse that cuts across ${poss(T)} orbit at a steep angle, so you pay twice: more speed to leave ${B.the}, and more to stop at ${T.the}.</p>
+      <p><b>Why burn so low?</b> The burn to leave is made low over ${B.the}, where you are moving fastest: each m/s there adds far more energy (the <b>Oberth effect</b>). That is why ${kmps(cheap.vD)} beyond ${poss(B)} pull costs only ${fmtDv(dep(cheap.vD) * 1000)} from your orbit, if the way out lies in your orbit's plane. If it doesn't, the burn also has to turn the path, which costs extra: the plot below counts that for your orbit.</p>
+      ${inward ? `<p><b>Going inward is not downhill.</b> To fall toward ${P.the} you have to cancel some of the ${kmps(len(B.orb.v0))} ${B.the} carries you round it, and you arrive going fast. ${P === SUN && T.orb.a < B.orb.a * 0.6 ? `Going out first and braking far away (a <b>bi-elliptic</b> transfer) only pays when the orbits differ by about 12 times or more; ${poss(T)} is only ${(B.orb.a / T.orb.a).toFixed(1)} times smaller than ${poss(B)}, so it costs more here (compare it below).` : ""}</p>` : ""}
+      ${stay && T.mu > 1e7 ? `<p><b>Why does stopping cost so much?</b> You fall into ${poss(T)} deep well and pass low over it at ${kmps(Math.sqrt(cheap.vA ** 2 + 2 * T.mu / rpT))}; a low circular orbit there needs only ${kmps(Math.sqrt(T.mu / rpT))}. Real orbiters such as Juno and Cassini brake just enough to be caught on a long, loose ellipse, a few hundred m/s to a couple of km/s. Untick <b>stay in orbit</b> to see the cost of getting there alone.</p>` : ""}
+      ${P === SUN ? `<p>Real missions to Mercury and to the outer planets save a great deal of fuel with <b>gravity assists</b>, swinging past other planets on the way. This planner leaves those out for now.</p>` : ""}
+      <p>The <b>porkchop plot</b> shows the fuel for every departure date (across) and trip time (up): darker is cheaper. Click anywhere on it to plan that one.</p>`;
+    const pork = { pk, label: k => `${fmtDate(k, false)}` };
+    if (!offerChoice(`Ways to ${T.the}`, opts, { why, pork })) toast(`Couldn't turn a transfer to ${T.the} into burns from this orbit. Try a lower, closed orbit round ${B.the}.`);
+    else toast(choice ? `${ways()} to ${T.the}, compared in the Manoeuvre panel, with why. Click one to see it on the map.` : `Transfer to ${T.the} planned.`, 9000);
+    // the porkchop's own pick: realise any point clicked on it
+    if (choice) choice.pick = (td, tof) => { const c = cost(td, tof); return c && realiseSibling(leg, T, td, td + tof, c.pro, rpT, stay); };
+  }
+
+  // From an orbit round P (round the Sun, or round a planet) straight to one of P's moons or planets with one Lambert burn.
+  function planDirect(T, leg, alt, stay) {
+    const o = leg.orb, P = o.body, rpT = T.R + alt;
+    if (leg.end === "impact") { toast("This path hits the ground first. Fix it before planning further."); return; }
+    if (!freeSlots(stay ? 2 : 1)) return;
+    const per = o.e < 1 ? o.period : Infinity;
+    const syn = isFinite(per) ? 1 / Math.abs(1 / per - 1 / T.orb.period) : T.orb.period;
+    const a0 = o.e < 1 ? o.a : o.rp, tH = Math.PI * Math.sqrt(((a0 + T.orb.a) / 2) ** 3 / P.mu);
+    const t0 = Math.max(sim.t, leg.t0) + 120, tEnd = Math.min(leg.endT, leg.t1);
+    const span = Math.min(syn * 1.1, 6 * YEAR, tEnd - t0 - 60);
+    if (!(span > 0)) { toast("This path leaves too soon to plan from."); return; }
+    const brake = v => stay ? Math.sqrt(v * v + 2 * T.mu / rpT) - Math.sqrt(T.mu / rpT) : 0;
+    const cost = (tb, tof) => {
+      const s = stateAt(o, tb), sT = relState(T, tb + tof);
+      let best = null;
+      for (const pro of [true, false]) {
+        const lam = lambert(s.r, sT.r, tof, P.mu, o.W, pro);
+        if (!lam) continue;
+        const vD = len(sub(lam.v1, s.v)), vA = len(sub(lam.v2, sT.v)), tot = vD + brake(vA);
+        if (isFinite(tot) && (!best || tot < best.tot)) best = { td: tb, tof, pro, vD, vA, tot, angle: lam.angle };
+      }
+      return best;
+    };
+    const pk = porkchop(t0, span, tH * 0.25, tH * 1.6, cost);
+    const cheap = pk.pick(() => true);
+    if (!cheap) { toast(`Couldn't find a way to ${T.the}.`); return; }
+    const cands = [{ c: cheap, name: "Least fuel", def: true }];
+    const soonEnd = t0 + Math.max(per < Infinity ? per : 0, syn * 0.05);
+    if (cheap.td > soonEnd) cands.push({ c: pk.pick(td => td <= soonEnd), name: "Leave now" });
+    cands.push({ c: pk.pick((td, tof) => tof <= cheap.tof * 0.6), name: "Faster" });
+    const opts = [];
+    cands.forEach(k => {
+      const c = k.c;
+      if (!c || !isFinite(c.tot) || c.tot > 60 || c.tot > cheap.tot * 2.5) return;   // nothing absurd
+      const r = realiseDirect(leg, T, c.td, c.td + c.tof, c.pro, rpT, stay);
+      if (!r) return;
+      opts.push({ name: k.name === "Faster" ? `Faster: ${fmtDur(r.ta - r.depT, true)} there` : k.name, nodes: r.nodes, doneT: r.doneT, def: k.def, at: { td: c.td, tof: c.tof },
+        note: `Burns ${r.depT - sim.t > 2 * DAY ? `on ${fmtDate(r.depT, false)}, in ${fmtDur(r.depT - sim.t, true)}` : `in ${fmtDur(r.depT - sim.t, true)}`}, ${fmtDur(r.ta - r.depT, true)} to ${T.the}, meeting it at ${kmps(r.vinfA)}${stay ? `, then brakes ${fmtDv(r.dvA)} into orbit` : ""}.` });
+    });
+    const why = `<p>You and ${T.the} both circle ${P.the}, at different speeds, so you line up the same way once every ${fmtDur(syn, true)}. The cheapest way across is close to half an ellipse touching both orbits (a <b>Hohmann transfer</b>, about ${fmtDur(tH, true)}), started when ${T.the} will be at the far end as you arrive. Quicker paths cut across at a steeper angle and arrive faster, which costs more to brake.</p>
+      <p>The <b>porkchop plot</b> shows the fuel for every burn time (across) and trip time (up): darker is cheaper. Click anywhere on it to plan that one.</p>`;
+    if (!offerChoice(`Ways to ${T.the}`, opts, { why, pork: { pk } })) toast(`Couldn't turn a transfer to ${T.the} into burns from this path.`);
+    else toast(choice ? `${ways()} to ${T.the}, compared in the Manoeuvre panel. Click one to see it on the map.` : `Transfer to ${T.the} planned.`, 9000);
+    if (choice) choice.pick = (td, tof) => { const c = cost(td, tof); return c && realiseDirect(leg, T, td, td + tof, c.pro, rpT, stay); };
+  }
+
+  // ---------- out first, then in: the bi-elliptic transfer ----------
+  // Leave B going faster round the Sun, coast out to aphelion Rb, then brake there, where you are moving slowly, to
+  // drop perihelion. In a plain central field this beats a Hohmann transfer only when the target orbit is about 12
+  // times smaller (or bigger) than the start, so it pays for diving at the Sun, not for reaching Venus or Mercury.
+  // Here: the departure is tuned until aphelion is at Rb; then a Lambert arc from aphelion meets T, or, aiming for the
+  // Sun, a level burn at aphelion sets perihelion.
+  function departHelio(leg, dirSign, vWant, fit) {
+    // leave B along (or against) its own direction of travel round the Sun, tuned by secant until fit(orbit) = 0
+    const o = leg.orb, B = o.body, tLo = Math.max(sim.t, leg.t0) + 120, win = clamp(o.period * 1.05, 1800, 3 * DAY);
+    const td = tLo + win;
+    const sB = relState(B, td), hB = unit(cross(cross(sB.r, sB.v), sB.r));
+    const run = s => {
+      const vinf = sub(mul(hB, vWant * s), sB.v);
+      const dep = bestDeparture(o, vinf, tLo, tLo + 2 * win);
+      if (!isFinite(dep.dv)) return null;
+      const ex = exitState(B, dep.t, dep.s.r, dep.v);
+      if (!ex) return null;
+      return { dep, ex, oh: orbitFromState(ex.r, ex.v, ex.t, SUN) };
+    };
+    let s0 = 1, s1 = 1.002, r0 = run(s0), r1 = run(s1);
+    if (!r0 || !r1) return null;
+    let f0 = fit(r0.oh), f1 = fit(r1.oh);
+    for (let it = 0; it < 12 && Math.abs(f1) > 1e-6; it++) {
+      const s2 = s1 - f1 * (s1 - s0) / (f1 - f0 || 1e-12);
+      const r2 = run(s2); if (!r2) break;
+      s0 = s1; f0 = f1; s1 = s2; r1 = r2; f1 = fit(r2.oh);
+    }
+    return Math.abs(f1) < 1e-3 ? { spec: burnSpec(o, r1.dep.t, sub(r1.dep.v, r1.dep.s.v)), oh: r1.oh, ex: r1.ex, vinf: len(sub(r1.dep.v, [0, 0, 0])) } : null;
+  }
+  function realiseBiElliptic(leg, T, Rb, rpT, stay) {
+    const B = leg.orb.body, rB = len(relState(B, sim.t).r);
+    const v1 = Math.sqrt(MU_SUN * 2 * Rb / (rB * (rB + Rb)));
+    const d = departHelio(leg, 1, v1, oh => oh.ra / Rb - 1);
+    if (!d) return null;
+    const oh = d.oh, tb = d.ex.t + timeToNu(oh, d.ex.t, Math.PI), sb = stateAt(oh, tb);
+    const half = Math.PI * Math.sqrt(((Rb + T.orb.a) / 2) ** 3 / MU_SUN);
+    const brake = v => stay ? Math.sqrt(v * v + 2 * T.mu / rpT) - Math.sqrt(T.mu / rpT) : 0;
+    let best = null;
+    for (let k = 0; k <= 160; k++) {
+      const ta = tb + half * (0.75 + 0.5 * k / 160), lam = lambert(sb.r, relState(T, ta).r, ta - tb, MU_SUN, oh.W, true);
+      if (!lam) continue;
+      const c = len(sub(lam.v1, sb.v)) + brake(len(sub(lam.v2, relState(T, ta).v)));
+      if (!best || c < best.c) best = { ta, c };
+    }
+    if (!best) return null;
+    const ta = best.ta;
+    let vinfA = null;
+    const burnTo = aim => { const lam = lambert(sb.r, aim, ta - tb, MU_SUN, oh.W, true); if (!lam) return null; vinfA = sub(lam.v2, relState(T, ta).v); return [d.spec, burnSpec(oh, tb, sub(lam.v1, sb.v))]; };
+    if (!burnTo(relState(T, ta).r)) return null;
+    const got = tunePass(T, rpT, k => burnTo(aimPoint(T, ta, vinfA, rpT * k)));
+    if (!got || got.L.orb.rp < T.R) return null;
+    const L = got.L, tPe = L.t0 + timeToNu(L.orb, L.t0, 0), nodes = [...got.specs];
+    if (stay) nodes.push(circSpec(L.orb, tPe));
+    return { name: `Out to ${fmtKm(Rb)} first, then in (bi-elliptic)`, nodes, doneT: tPe,
+      note: `Leaves ${B.the} going faster, coasts ${fmtDur(tb - d.ex.t, true)} out to ${fmtKm(Rb)} (Jupiter's distance), brakes ${fmtDv(specDv(nodes[1]))} there to fall inward, and takes another ${fmtDur(L.t0 - tb, true)} to reach ${T.the}. It costs more than the Hohmann transfer here, and takes years.` };
+  }
+  // ---------- to the Sun ----------
+  // A close pass by the Sun (as Parker Solar Probe makes), from orbit round a planet. Straight in: leave against the
+  // planet's motion, shedding enough of its speed round the Sun to fall in. Or out first: raise aphelion far out, where
+  // the craft barely moves, and brake there instead. Further out is cheaper and slower.
+  function planSun(leg, alt, stay) {
+    const o = leg.orb, B = o.body, rT = SUN.R + alt;
+    if (o.e >= 1 || leg.end || o.ra > B.soi * 0.5) { toast(`Start from a closed orbit well inside ${poss(B)} sphere of influence.`); return; }
+    if (!freeSlots(stay ? 3 : 2)) return;
+    const rB = len(relState(B, sim.t).r), opts = [];
+    const vIn = Math.sqrt(MU_SUN * 2 * rT / (rB * (rB + rT)));
+    const d = departHelio(leg, 1, vIn, oh => oh.rp / rT - 1);
+    if (d) {
+      const tPe = d.ex.t + timeToNu(d.oh, d.ex.t, 0), nodes = [d.spec];
+      if (stay) nodes.push(circSpec(d.oh, tPe));
+      opts.push({ name: "Straight in", nodes, doneT: tPe, def: true,
+        note: `One burn sheds ${kmps(len(relState(B, sim.t).v) - vIn)} of ${poss(B)} speed round the Sun, and the craft falls in for ${fmtDur(tPe - d.ex.t, true)}.` });
+    }
+    [5.2 * AU, 20 * AU].forEach(Rb => {
+      const v1 = Math.sqrt(MU_SUN * 2 * Rb / (rB * (rB + Rb)));
+      const b = departHelio(leg, 1, v1, oh => oh.ra / Rb - 1);
+      if (!b) return;
+      const tA = b.ex.t + timeToNu(b.oh, b.ex.t, Math.PI);
+      const s2 = levelSpec(b.oh, tA, Math.sqrt(MU_SUN * 2 * rT / (Rb * (Rb + rT))));
+      const tr = trial([b.spec, s2]), L = tr.legs[tr.legs.length - 1];
+      if (L.body !== SUN) return;
+      const tPe = tA + timeToNu(L.orb, tA, 0), nodes = [b.spec, s2];
+      if (stay) nodes.push(circSpec(L.orb, tPe));
+      opts.push({ name: `Out to ${fmtKm(Rb)} first, then in (bi-elliptic)`, nodes, doneT: tPe,
+        note: `Leaves ${B.the} going faster, coasts ${fmtDur(tA - b.ex.t, true)} out to ${fmtKm(Rb)}, where it moves at only ${kmps(Math.sqrt(MU_SUN * 2 * rB / (Rb * (Rb + rB))))}, brakes ${fmtDv(specDv(s2))} there, and falls ${fmtDur(tPe - tA, true)} to the Sun.` });
+    });
+    const why = `<p><b>Why is the Sun so hard to reach?</b> ${The(B)} carries you round the Sun at ${kmps(len(relState(B, sim.t).v))}. To fall in close you must cancel nearly all of that sideways speed, or you just swing past.</p>
+      <p><b>Straight in</b> does it in one burn, deep in ${poss(B)} gravity, where the Oberth effect helps. <b>Out first</b> (a <b>bi-elliptic</b> transfer) spends fuel going faster, climbs far out where the craft moves slowly, and brakes there, where cancelling the sideways speed is cheap. The further out, the cheaper and the slower. In a plain central field this only beats the direct way when the two orbits differ by about 12 times or more: here ${fmtKm(rB)} against ${fmtKm(rT)}, about ${Math.round(rB / rT)} times, so it pays. For Venus or Mercury it does not.</p>
+      <p>Real probes go another way: <b>gravity assists</b>. Parker Solar Probe flew past Venus seven times to shed speed. This planner leaves those out for now.</p>`;
+    if (!offerChoice("Ways to the Sun", opts, { why })) toast("Couldn't find a way to the Sun from this orbit.");
+    else toast(choice ? `${ways()} to the Sun, compared in the Manoeuvre panel, with why.` : "Dive to the Sun planned.", 9000);
+  }
+
+  // ---------- Transfer to … ----------
+  // Picks the planner for where the target sits from the body the plan ends round: the same body (come down to a
+  // low orbit), one of its moons (or planets, round the Sun), the body it circles, or a neighbour circling the same
+  // body. Anything further is done in steps.
+  const DEFAULT_PASS = { Sun: 6e6, Mercury: 200, Venus: 300, Earth: 300, Mars: 300, Jupiter: 4000, Saturn: 20000, Uranus: 2000, Neptune: 2000, Moon: 100, Titan: 1000 };
+  const defaultPass = T => DEFAULT_PASS[T.name] || (T.R > 1000 ? 100 : Math.max(2, Math.round(T.R * 0.5)));
+  function nextHop(B, T) {
+    // the next body on the way from B to T: down toward T if T is below B, otherwise up, or across to a neighbour
+    for (let x = T; x; x = x.parent) if (x.parent === B) return x;
+    for (let x = T; x; x = x.parent) if (B.parent && x.parent === B.parent) return x;
+    return B.parent;
+  }
+  function planTransfer() {
+    closeChoice();
+    const T = transferTarget(), leg = planLeg(), B = leg.body, alt = parseFloat($("xferAlt").value), stay = $("xferStay").checked;
+    if (!T) return;
+    if (!isFinite(alt) || alt < 1) { toast("Pick a height to pass at, in km above the surface."); return; }
+    if (T !== SUN && T.R + alt > T.soi * 0.8) { toast(`That's beyond ${poss(T)} reach: its sphere of influence ends ${fmtKm(T.soi - T.R)} up. Pick a lower pass.`); return; }
+    if (leg.end === "impact") { toast("This path hits the ground first. Fix it before planning further."); return; }
+    if (T === B) {
+      if (T === SUN) { toast("You're already round the Sun. Pick a planet to go to."); return; }
+      if (!freeSlots(1)) return;
+      const opts = comeDown(leg, alt);
+      if (!opts) return;
+      if (!offerChoice(`Down to a ${fmtKm(alt)} orbit`, opts)) toast("Couldn't find a way down from this orbit.");
+      else toast(choice ? `${ways()} down, compared in the Manoeuvre panel.` : "Way down planned.", 8000);
+      return;
+    }
+    if (T === MOON && B === EARTH) { planMoon(); return; }
+    if (T.parent === B) { planDirect(T, leg, alt, stay); return; }
+    if (B.parent === T) {
+      if (T === SUN) { planSun(leg, alt, stay); return; }
+      if (!freeSlots(1)) return;
+      const opts = returnToParent(leg, alt);
+      if (!offerChoice(`Ways to ${T.the}`, opts, { why: `<p>To fall from ${B.the} toward ${T.the} you must leave ${B.the} heading backwards against its motion round ${T.the}, so the moment you burn matters: only when your orbit round ${B.the} points the right way is it cheap. Arriving fast, braking into a low orbit costs more than leaving${T === EARTH ? ", which is why Apollo let Earth's air do it" : ""}.</p>` }))
+        toast(`Couldn't find a way to ${T.the} from this path round ${B.the} in the next few days.`);
+      else toast(choice ? `${ways()} to ${T.the}, compared in the Manoeuvre panel. Click one to see it on the map.` : `Way to ${T.the} planned.`, 9000);
+      return;
+    }
+    if (B.parent && T.parent === B.parent) { planSibling(T, leg, alt, stay); return; }
+    const hop = nextHop(B, T);
+    toast(`${T.name} is ${T.parent === SUN || T === SUN ? "" : `a moon of ${T.parent.name}, `}too far to plan in one go from round ${B.the}. Go in steps: first transfer to ${hop.the}${stay ? "" : " (and stay in orbit there)"}, then plan again from there.`, 10000);
+    $("xferTarget").value = hop.name; targetChanged();
+  }
+  $("xferPlan").addEventListener("click", planTransfer);
+  const xferSel = $("xferTarget");
+  fillBodyList(xferSel, false);
+  xferSel.value = "Moon";
+  function targetChanged() {
+    const T = transferTarget();
+    $("xferAlt").value = defaultPass(T);
+    $("xferPassLbl").textContent = T === SUN ? "passing within" : "passing at";
+    wake(); refreshPanel();
+  }
+  xferSel.addEventListener("change", targetChanged);
+
+  // ---------- change inclination: to a tilt, or into another orbit's plane ----------
+  const incMode = $("incMode");
+  let incFor = null;
+  function fillIncModes() {
+    const B = planLeg().body;
+    if (incFor === B) return;
+    incFor = B;
+    const keep = incMode.value;
+    incMode.innerHTML = "";
+    const opt = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; incMode.appendChild(o); };
+    opt("tilt", B === SUN ? "a tilt to the ecliptic of" : `a tilt to ${poss(B)} equator of`);
+    B.kids.forEach(C => opt(`plane:${C.name}`, `${poss(C)} orbital plane`));
+    if (B.parent) opt(`plane:${B.name}`, B === EARTH ? "the ecliptic (Earth's path round the Sun)" : `the plane of ${poss(B)} own orbit`);
+    incMode.value = [...incMode.options].some(o => o.value === keep) ? keep : "tilt";
+    syncIncMode();
+  }
+  function syncIncMode() { const tilt = incMode.value === "tilt"; $("incTarget").hidden = $("incDeg").hidden = !tilt; }
+  incMode.addEventListener("change", syncIncMode);
+  // Match another plane: burn where the two planes cross (the higher crossing, where you move slower), turning the
+  // velocity about the line to the body's centre until it lies in the target plane.
+  function matchPlane(N, name) {
+    const leg = planLeg(), o = leg.orb, ang = Math.acos(clamp(dot(o.W, N), -1, 1));
+    if (ang < 0.01 * DEG) { toast(`Your orbit already lies in ${name}.`); return; }
+    const nLine = unit(cross(o.W, N)), end = Math.min(leg.endT, leg.t1);
+    const cands = [nLine, mul(nLine, -1)].map(d => {
+      const nu = Math.atan2(dot(d, o.Q), dot(d, o.P));
+      if (o.e >= 1 && Math.abs(wrapPi(nu)) >= o.nuAsym) return null;
+      let dt = timeToNu(o, leg.t0, nu);
+      if (o.e < 1 && leg.t0 + dt < sim.t + 5) dt += o.period;
+      const t = leg.t0 + dt;
+      return isFinite(t) && t < end - 1 ? { t, r: len(stateAt(o, t).r) } : null;
+    }).filter(Boolean).sort((a, b) => b.r - a.r);
+    if (!cands.length) { toast("This path doesn't reach the line where the planes cross before it ends."); return; }
+    const c = cands[0], s = stateAt(o, c.t), rh = unit(s.r), vr = dot(s.v, rh), vt = len(sub(s.v, mul(rh, vr)));
+    const v2 = add(mul(rh, vr), mul(unit(cross(N, rh)), vt));
+    const n = addNode(c.t, burnSpec(o, c.t, sub(v2, s.v)));
+    if (n) toast(`Turning ${(ang / DEG).toFixed(1)}° into ${name} where the planes cross${cands.length > 1 ? ", at the higher of the two crossings, where you move slower" : ""}: ${fmtDv(nodeDv(n))}.`, 8000);
+  }
 
   // fly by hand
   const thrustBtns = [...document.querySelectorAll("#thrust button")];
@@ -2154,22 +3025,37 @@ select.field option { background: #0e121e; }
   // choosing a warp by hand cancels any warp waiting to come back after a burn
   function setWarp(i) { sim.warpIdx = clamp(i, 0, WARPS.length - 1); warpIn.value = sim.warpIdx; sim.warpBack = null; }
   warpIn.addEventListener("input", () => setWarp(+warpIn.value));
-  // the camera looks at Earth, the Moon or the craft, and keeps up with it as it moves
-  let focus = "earth";
+  // The camera looks at a body, or at the craft, and keeps up with it as it moves. The scene is drawn from the centre
+  // of that body (of the body the craft orbits, when following the craft), so following a body costs nothing.
+  let focus = EARTH;
   const focusPrev = new THREE.Vector3();
-  const craftScene = () => toScene(geoState(sim.orbit, sim.t).r);
-  const moonScene = t => toScene(moonAt(t).r);
-  const focusPoint = () => focus === "craft" ? craftScene() : focus === "moon" ? moonScene(sim.t) : new THREE.Vector3();
-  function markFocus() { [["focusEarth", "earth"], ["focusMoon", "moon"], ["focusCraft", "craft"]].forEach(([id, k]) => $(id).setAttribute("aria-pressed", String(focus === k))); }
-  function setFocus(kind, dist) {
-    focus = kind; markFocus();
-    const p = focusPoint(), off = camera.position.clone().sub(controls.target);
-    const d = dist || (kind === "craft" ? Math.min(off.length(), 6) : kind === "moon" ? clamp(off.length(), 6, 60) : Math.max(off.length(), earthR * 3));
-    controls.target.copy(p); camera.position.copy(p).add(off.setLength(d)); focusPrev.copy(p);
+  const focusBody = () => focus === "craft" ? sim.orbit.body : focus;
+  const craftScene = () => toScene(stateAt(sim.orbit, sim.t).r).add(sim.orbit.body.pos);
+  const focusPoint = () => focus === "craft" ? craftScene() : new THREE.Vector3();
+  // the body list, for the Follow and Transfer to menus: the Sun, each planet, and its moons indented below it
+  function fillBodyList(sel, withCraft) {
+    sel.innerHTML = "";
+    const opt = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); };
+    if (withCraft) opt("craft", "Your craft");
+    opt("Sun", "The Sun");
+    PLANETS.forEach(P => { opt(P.name, P.name); P.kids.forEach(M => opt(M.name, `\u00a0\u00a0\u00a0${M.name}`)); });
   }
-  $("focusEarth").addEventListener("click", () => setFocus("earth"));
-  $("focusMoon").addEventListener("click", () => setFocus("moon"));
-  $("focusCraft").addEventListener("click", () => setFocus("craft"));
+  const followSel = $("follow");
+  fillBodyList(followSel, true);
+  function markFocus() { followSel.value = focus === "craft" ? "craft" : focus.name; }
+  // a comfortable distance to look at a body from: a few radii, or for the Sun the inner planets
+  const viewDist = B => B === SUN ? 2.6 * AU / KM : B.R / KM * 5.5;
+  function setFocus(kind, dist) {
+    const wasB = focusBody();
+    focus = kind; markFocus();
+    viewBody = focusBody(); placeBodies();
+    const p = focusPoint(), off = camera.position.clone().sub(controls.target), B = viewBody;
+    const d = dist || (kind === "craft" ? Math.min(off.length(), Math.max(6, B.R / KM * 1.2)) : B === wasB ? off.length() : viewDist(B));
+    controls.target.copy(p); camera.position.copy(p).add(off.setLength(d)); focusPrev.copy(p);
+    controls.minDistance = B.R / KM * (B === SUN ? 1.6 : 1.15);
+    wake();
+  }
+  followSel.addEventListener("change", () => setFocus(followSel.value === "craft" ? "craft" : byName[followSel.value]));
 
   // fixed viewing angles, swung to smoothly around whatever the camera is looking at
   const VIEWS = { view3d: "3d", viewTop: "top", viewPlane: "plane" };
@@ -2198,32 +3084,32 @@ select.field option { background: #0e121e; }
   controls.addEventListener("start", () => { viewAnim = null; aim.goal = 0; dragDir.copy(camera.position).sub(controls.target).normalize(); });
   controls.addEventListener("end", () => { if (camera.position.clone().sub(controls.target).normalize().dot(dragDir) < 0.99999) markView(null); });
   function fitView() {
-    // round the Moon, fit its part of the path; otherwise the whole path about Earth
-    const moonView = focus === "moon" || (focus === "craft" && sim.orbit.body === MOON);
-    if (focus === "craft") setFocus(moonView ? "moon" : "earth");
-    const c = focusPoint();
-    let rmax = moonView ? RM * 2 : sim.orbit.body === EARTH ? (sim.orbit.e < 1 ? sim.orbit.ra : sim.orbit.rp * 6) : 0;
-    const firstMoon = traj.findIndex(l => l.body === MOON);
-    traj.forEach((leg, k) => {
-      const o = leg.orb;
-      if (moonView && leg.body !== MOON) return;
-      if (firstMoon >= 0 && k > firstMoon && leg.body !== MOON) return;   // where the Moon flings you afterwards can be huge
+    // fit the path round the body in view and the moons it visits; round the Sun, the whole path between the planets
+    if (focus === "craft") setFocus(sim.orbit.body);
+    const V = viewBody, c = focusPoint(), o0 = sim.orbit;
+    let rmax = o0.body === V ? (o0.e < 1 && o0.ra < V.soi ? o0.ra : o0.rp * 6) : V.R * 3;
+    let flung = false;
+    traj.forEach(leg => {
+      const o = leg.orb, B = leg.body, mine = B === V, below = isAncestor(V, B);
+      if (!mine && !below) return;
+      if (mine && flung && V !== SUN) return;              // where a moon flings you afterwards can be huge
+      if (below) flung = true;
       let r = 0;
       if (leg.samples) for (let k = 0; k < leg.samples.pos.length; k += 3) {
         r = Math.max(r, Math.hypot(leg.samples.pos[k] + leg.origin.x - c.x, leg.samples.pos[k + 1] + leg.origin.y - c.y, leg.samples.pos[k + 2] + leg.origin.z - c.z) * KM);
       }
-      if (leg.body === EARTH && (leg.end === "escape" || (o.e >= 1 && leg.end !== "soi"))) r = Math.min(r, Math.max(o.rp * 6, 60000));   // don't zoom out to the edge of the sphere of influence
+      if (mine && V !== SUN && (o.e >= 1 || leg.end === "soi" && o.ra > V.soi)) r = Math.min(r, Math.max(o.rp * 6, V.R * 10));   // don't zoom out to the edge of the sphere of influence
       rmax = Math.max(rmax, r);
     });
-    const d = clamp(rmax / KM * 4.4 / framing(), moonView ? 6 : 28, 3000);
+    const d = clamp(rmax / KM * 4.4 / framing(), V.R / KM * 4, 4e7);
     animateTo(camera.position.clone().sub(controls.target).setLength(d));
   }
   $("fit").addEventListener("click", fitView);
   $("undo").addEventListener("click", undo);
   const toggle = (btnId, apply) => { const b = $(btnId); b.addEventListener("click", () => { const on = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", String(on)); apply(on); }); };
   toggle("eqBtn", on => { eqGroup.visible = on; });
-  toggle("planeBtn", on => { planeGroup.visible = on; });
-  function showPlanes(on) { planeGroup.visible = on; $("planeBtn").setAttribute("aria-pressed", String(on)); wake(); }
+  toggle("planeBtn", on => { planesOn = on; });
+  function showPlanes(on) { planesOn = on; $("planeBtn").setAttribute("aria-pressed", String(on)); wake(); }
   const narrow = () => window.innerWidth <= 860;
   toggle("manBtn", on => { $("man").hidden = !on; if (on && narrow()) { $("elements").hidden = true; $("elBtn").setAttribute("aria-pressed", "false"); } });
   toggle("elBtn", on => { $("elements").hidden = !on; if (on && narrow()) { $("man").hidden = true; $("manBtn").setAttribute("aria-pressed", "false"); } });
@@ -2234,7 +3120,7 @@ select.field option { background: #0e121e; }
   $("restart").addEventListener("click", () => { if ($("scenario").value === "launch" && lastLaunch) launch(lastLaunch); else loadScenario($("scenario").value); });
   $("scenario").addEventListener("change", e => loadScenario(e.target.value));
 
-  function loadScenario(key) { const sc = SCENARIOS[key]; begin(sc, key, sc.s(), 0, 0); }
+  function loadScenario(key) { const sc = SCENARIOS[key]; begin(sc, key, sc.s(), NOW, NOW); }
   // start flying from a state at time t0; the mission clock reads zero at met0
   function begin(sc, key, s, t0, met0) {
     sim.scenario = key; $("scenario").value = key;
@@ -2245,7 +3131,8 @@ select.field option { background: #0e121e; }
     history.length = 0; handBurn = null; syncUndo();
     setWarp(sc.warp); setPlaying(true);
     buildTrajectory(); refreshPanel();
-    focus = sc.body === MOON ? "moon" : "earth"; markFocus();
+    focus = sc.body || EARTH; markFocus();
+    viewBody = focus; placeBodies(); controls.minDistance = focus.R / KM * 1.15;
     const p = focusPoint(); controls.target.copy(p); focusPrev.copy(p); viewAnim = null; markView("3d");
     const f = freeRect();   // stand back further when the panels leave less room
     camera.position.copy(viewDir("3d").multiplyScalar(sc.cam * Math.max(1, 0.8 / (f.w / f.h)) * Math.min(1.8, H / f.h)).add(p));
@@ -2259,10 +3146,10 @@ select.field option { background: #0e121e; }
   // offered are the moments, about twice a day, when the plane through the site and the Moon's future position is
   // tilted least.
   const OMEGA_E = TAU / SIDEREAL;
-  const SUN_I = unit([sunDir.x, -sunDir.z, sunDir.y]);        // the Sun's direction, in Earth's frame
+  const sunFromEarth = t => unit(mul(helioPos(EARTH, t), -1));   // the Sun's direction, seen from Earth
   function siteAt(site, t) {
-    const th = site.lon * DEG + t * OMEGA_E, ph = site.lat * DEG;
-    return { th, r: [Math.cos(ph) * Math.cos(th), Math.cos(ph) * Math.sin(th), Math.sin(ph)],
+    const th = site.lon * DEG + gmst(t), ph = site.lat * DEG;
+    return { t, th, r: [Math.cos(ph) * Math.cos(th), Math.cos(ph) * Math.sin(th), Math.sin(ph)],
       east: [-Math.sin(th), Math.cos(th), 0], north: [-Math.sin(ph) * Math.cos(th), -Math.sin(ph) * Math.sin(th), Math.cos(ph)] };
   }
   const headingOf = (W, st) => { const v = cross(W, st.r); return wrap(Math.atan2(dot(v, st.east), dot(v, st.north))); };
@@ -2275,8 +3162,8 @@ select.field option { background: #0e121e; }
   const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
   const compass = az => COMPASS[Math.round(az / DEG / 22.5) % 16];
   function localTime(st) {
-    const h = (12 + wrapPi(st.th - Math.atan2(SUN_I[1], SUN_I[0])) / TAU * 24 + 24) % 24;
-    return `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor(h % 1 * 60)).padStart(2, "0")} local, ${dot(st.r, SUN_I) > 0 ? "daylight" : "night"}`;
+    const S = sunFromEarth(st.t), h = (12 + wrapPi(st.th - Math.atan2(S[1], S[0])) / TAU * 24 + 24) % 24;
+    return `${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor(h % 1 * 60)).padStart(2, "0")} local, ${dot(st.r, S) > 0 ? "daylight" : "night"}`;
   }
   // Lift-off at tL puts the craft in orbit 15° downrange ten minutes later (see launch below).
   const INSERT_DT = 600, INSERT_ANG = 15 * DEG;
@@ -2393,7 +3280,7 @@ select.field option { background: #0e121e; }
       "launch", s, p.t + INSERT_DT, p.t);
     if (p.moon) {
       showPlanes(true);
-      if (p.plan) planMoon();
+      if (p.plan) { xferSel.value = "Moon"; targetChanged(); planMoon(); }
     }
   }
   $("launchBtn").addEventListener("click", () => launchEl.hidden ? openLaunch() : closeLaunch());
@@ -2447,9 +3334,10 @@ select.field option { background: #0e121e; }
         sim.orbit = orbitFromState(s.r, add(s.v, dv), sim.t, sim.orbit.body);
         sim.spent += a * 1000;
         if (len(s.r) < sim.orbit.body.R) { end("impact"); break; }
-        // crossed into or out of the Moon's sphere of influence while firing
-        const dMoon = sim.orbit.body === MOON ? len(s.r) : len(sub(s.r, moonAt(sim.t).r));
-        if ((sim.orbit.body === MOON) === (dMoon > SOI_M)) { sim.orbit = rebaseAt(sim.orbit, sim.t); soiToast(); }
+        // crossed out of this body's sphere of influence, or into a moon's, while firing
+        const B = sim.orbit.body;
+        if (B.parent && len(s.r) > B.soi) { sim.orbit = rebaseTo(sim.orbit, sim.t, B.parent); soiToast(B); }
+        else for (const C of B.kids) if (len(sub(s.r, relState(C, sim.t).r)) < C.soi) { sim.orbit = rebaseTo(sim.orbit, sim.t, C); soiToast(B); break; }
       }
       // nodes that are now in the past are dropped
       sim.nodes.filter(n => n.t <= sim.t).forEach(deleteNode);
@@ -2459,9 +3347,10 @@ select.field option { background: #0e121e; }
         const leg = traj[0];
         if (!leg.end || leg.endT > tEnd) break;
         sim.t = leg.endT;
-        if (leg.end !== "soi") { end(leg.end, leg.body); return; }
-        sim.orbit = traj[1].orb;
-        buildTrajectory(); soiToast();
+        if (leg.end === "impact") { end(leg.end, leg.body); return; }
+        const from = sim.orbit.body;
+        sim.orbit = traj[1] ? traj[1].orb : legEvent(leg.orb, leg.t0).next;
+        buildTrajectory(); soiToast(from);
       }
       sim.t = tEnd;
     }
@@ -2474,17 +3363,16 @@ select.field option { background: #0e121e; }
     }
     buildTrajectory();
   }
-  function soiToast() {
-    toast(sim.orbit.body === MOON
-      ? "Entered the Moon's sphere of influence: from here the Moon's gravity steers you, and the Orbit panel describes your orbit round the Moon."
-      : "Left the Moon's sphere of influence: you are back on an orbit round Earth.", 7000);
+  function soiToast(from) {
+    const B = sim.orbit.body;
+    toast(B === from.parent
+      ? `Left ${poss(from)} sphere of influence: you are now on an orbit round ${B.the}${B === SUN ? ", between the planets" : ""}.`
+      : `Entered ${poss(B)} sphere of influence: from here ${poss(B)} gravity steers you, and the Orbit panel describes your orbit round ${B.the === "the Moon" ? "the Moon" : "it"}.`, 7000);
   }
   function end(kind, body = EARTH) {
     sim.ended = kind; setPlaying(false);
     const again = history.length || handBurn ? "Press Undo burn to try that burn again, or Restart to start over." : "Pick a start and press Restart to fly again.";
-    toast(kind === "impact"
-      ? `Impact${body === MOON ? " on the Moon" : ""}! Your periapsis was below the surface. ${again}`
-      : `You've left Earth's sphere of influence: from here the Sun's gravity takes over, which this version doesn't simulate yet. ${again}`, 12000);
+    toast(body === SUN ? `You fell into the Sun. ${again}` : `Impact${body === EARTH ? "" : ` on ${body.the}`}! Your periapsis was below the surface. ${again}`, 12000);
   }
 
   // ---------- draw ----------
@@ -2495,10 +3383,11 @@ select.field option { background: #0e121e; }
     if (!full) {
       nuA = wrapPi(nuFromMean(o, meanAt(o, leg.t0)));
       nuB = leg.end ? leg.endNu : (o.e < 1 ? nuA + TAU : o.nuAsym * 0.999);
+      if (!leg.end && o.e >= 1 && o.body === SUN) nuB = Math.min(nuB, radiusToNu(o, Math.max(60 * AU, o.rp * 3), true));   // out to the edge of the planets, not to infinity
       if (o.e < 1 && leg.end) { while (nuB < nuA) nuB += TAU; }
     }
     const planned = leg.planned;
-    // a leg round the Moon is drawn about the Moon where it is then (now, or when the craft gets there)
+    // a leg is drawn about its body where that body is then (now, or when the craft gets there)
     L.solid.position.copy(leg.origin); L.dashed.position.copy(leg.origin);
     // past a sphere-of-influence crossing, the path you're already on is drawn in silver rather than gold
     L.solid.material.color.set(k > 0 ? 0xd2dbe6 : 0xf0d49a);
@@ -2590,50 +3479,97 @@ select.field option { background: #0e121e; }
       if (!moved) break;
     }
   }
+  // A body's name on the map, while it is small on screen, and not when it would sit on top of its planet's.
+  // Clicking it follows that body.
+  const pxSize = (r, v) => r / Math.max(1e-9, v.distanceTo(camPos)) / Math.tan(camera.fov * DEG / 2) * H / 2;
+  function labelBodies() {
+    BODIES.forEach(B => {
+      if (B === viewBody && pxSize(B.R / KM, B.pos) > 3) return;
+      if (pxSize(B.R / KM, B.pos) > 18) return;
+      if (B.parent && B.parent !== SUN && pxSize(B.orb.a / KM, B.parent.pos) < 22) return;     // crowded onto its planet
+      const m = mark("body", B.name);
+      m.dataset.body = B.name;
+      if (place(m, B.pos, false)) m.classList.toggle("dim", B !== viewBody && behindEarth(B.pos));
+    });
+  }
+  // orbits of bodies, and spheres of influence, drawn only while big enough on screen to tell apart
+  function showBodyOrbits(target) {
+    BODIES.forEach(B => {
+      if (!B.orbitLine) return;
+      const px = pxSize(B.orb.a / KM, B.parent.pos);
+      B.orbitLine.visible = px > 10 && (B.parent === SUN || px < 4e4);
+      B.orbitLine.material.opacity = (B === target ? 0.75 : B.planet ? 0.4 : 0.28) * clamp((px - 10) / 30, 0.25, 1);
+    });
+    const want = new Set([...viewBody.kids, sim.orbit.body]);
+    traj.forEach(l => want.add(l.body));
+    if (target) want.add(target);
+    let k = 0;
+    want.forEach(B => {
+      if (!B.parent || !isFinite(B.soi)) return;
+      const px = pxSize(B.soi / KM, B.pos);
+      if (px < 8 || px > 4 * Math.max(W, H)) return;
+      const l = soiRingFor(k++);
+      l.position.copy(B.pos); l.quaternion.copy(camera.quaternion); l.scale.setScalar(B.soi / KM);
+    });
+    for (let j = k; j < soiPool.length; j++) soiPool[j].visible = false;
+  }
   const tmpS = {};
   function draw() {
     camera.updateMatrixWorld();     // project with where the camera is now, not where it was last frame
     camPos.copy(camera.position);
     markUsed = 0; placed = [];
+    traj.forEach(leg => sceneOf(leg.anchor, leg.origin));
     // orbit legs
     traj.forEach((leg, k) => sampleLeg(leg, k, k === 0));
     for (let k = traj.length; k < linePool.length; k++) { linePool[k].solid.visible = linePool[k].dashed.visible = false; }
-    // apsis, node and end markers for the current orbit, the final plan, and every pass round the Moon
-    const shown = traj.map((l, k) => k).filter(k => k === 0 || k === traj.length - 1 || traj[k].body === MOON || traj[k].end === "soi");
+    // apsis, node and end markers for the current orbit, the final plan, and every pass round another body
+    const B0 = traj[0].body;
+    const shown = traj.map((l, k) => k).filter(k => k === 0 || k === traj.length - 1 || traj[k].body !== B0 || traj[k].end === "soi");
     const at = (leg, nu) => toScene(stateAtNu(leg.orb, nu).r).add(leg.origin);
     shown.forEach(k => {
-      const leg = traj[k], o = leg.orb, cls = leg.planned ? "plan" : "", B = o.body, pre = B === MOON ? "Moon " : "";
-      const full = k === 0 || k === traj.length - 1 || B === MOON;
+      const leg = traj[k], o = leg.orb, cls = leg.planned ? "plan" : "", B = o.body, pre = B === B0 ? "" : B === SUN ? "Sun " : `${B.name} `;
+      const full = k === 0 || k === traj.length - 1 || B !== B0;
+      const ap = B === SUN ? "Aphelion" : `${pre}Ap`, pe = B === SUN ? "Perihelion" : `${pre}Pe`;
       if (full && o.e > 1e-4) {
-        if (o.e < 1 && onLeg(leg, Math.PI)) place(mark(cls, `${pre}Ap ${fmtKm(o.ra - B.R)}`, k ? "" : "ap"), at(leg, Math.PI));
-        if (onLeg(leg, 0) && o.rp > B.R) place(mark(cls, `${pre}Pe ${fmtKm(o.rp - B.R)}`, k ? `pe:${k}` : "pe"), at(leg, 0));
+        if (o.e < 1 && onLeg(leg, Math.PI)) place(mark(cls, `${ap} ${fmtKm(o.ra - B.R)}`, k ? "" : "ap"), at(leg, Math.PI));
+        if (onLeg(leg, 0) && o.rp > B.R) place(mark(cls, `${pe} ${fmtKm(o.rp - B.R)}`, k ? `pe:${k}` : "pe"), at(leg, 0));
       }
-      if (full && B !== MOON && !o.equatorial && o.i > 0.05 * DEG) {
+      if (full && (k === 0 || B === SUN || B === EARTH) && !o.equatorial && o.i > 0.05 * DEG) {
         const an = nuOfLine(o, "an");
         if (onLeg(leg, an) && (o.e < 1 || Math.abs(wrapPi(an)) < o.nuAsym)) place(mark(cls, "AN", k ? "" : "an"), at(leg, an));
         if (onLeg(leg, an + Math.PI) && (o.e < 1 || Math.abs(wrapPi(an + Math.PI)) < o.nuAsym)) place(mark(cls, "DN", k ? "" : "an"), at(leg, an + Math.PI));
       }
       // events on the path (no burn): drawn as diamonds, where burns are round nodes
-      if (leg.end === "impact") place(mark("impact", `Impact${B === MOON ? " on the Moon" : ""} in ${fmtDur(leg.endT - sim.t, true)}`, `end:${k}`), at(leg, leg.endNu));
-      else if (leg.end === "escape") place(mark(cls + " ev", "Leaves Earth's influence", `end:${k}`), at(leg, leg.endNu));
-      else if (leg.end === "soi" || leg.end === "more") place(mark(cls + " ev", B === MOON ? "Leaves the Moon's influence" : `Moon encounter in ${fmtDur(leg.endT - sim.t, true)}`, leg.end === "soi" ? `soi:${k}` : `end:${k}`), at(leg, leg.endNu), true, B === MOON);
+      if (leg.end === "impact") place(mark("impact", `${B === SUN ? "Into the Sun" : `Impact${B === EARTH ? "" : ` on ${B.the}`}`} in ${fmtDur(leg.endT - sim.t, true)}`, `end:${k}`), at(leg, leg.endNu));
+      else if (leg.end === "soi" || leg.end === "more") {
+        const nx = traj[k + 1], up = nx ? nx.body === B.parent : false;
+        place(mark(cls + " ev", up ? `Leaves ${poss(B)} influence` : nx ? `${nx.body.name} encounter in ${fmtDur(leg.endT - sim.t, true)}` : "and onward", leg.end === "soi" ? `soi:${k}` : `end:${k}`), at(leg, leg.endNu), true, up);
+      }
     });
-    // the Moon, and where it will be when a planned path reaches it
-    // label the Moon while it is small on screen; once it is big enough to see, the label would only cover it
-    const moonPx = moonR / Math.max(1e-6, moonPos.distanceTo(camPos)) / Math.tan(camera.fov * DEG / 2) * H / 2;
-    if (moonPx < 18) { const m = mark("body", "Moon"); if (place(m, moonPos, false)) m.classList.toggle("dim", behindSphere(moonPos, ORIGIN, earthR)); }
-    const ghostLeg = traj.find(l => l.body === MOON && l.refT > sim.t + 1);
-    moonGhost.visible = !!ghostLeg;
-    if (ghostLeg) { moonGhost.position.copy(ghostLeg.origin); place(mark("ref", "Moon at encounter"), ghostLeg.origin, false, true); }
-    // your orbit's plane against the Moon's
-    if (planeGroup.visible) updatePlanes().forEach(l => place(mark(l.node ? "ev xn" : "ref xn", l.text, l.key), l.pos, l.node, !!l.minor));
+    // bodies, and where each will be when a planned path reaches it
+    labelBodies();
+    const target = transferTarget();
+    showBodyOrbits(target);
+    let gk = 0;
+    const ghosted = new Set();
+    traj.forEach(l => {
+      if (l.refT > sim.t + 1 && l.body !== SUN && !ghosted.has(l.body)) {
+        ghosted.add(l.body);
+        ghostFor(gk++, l.body).position.copy(l.origin);
+        place(mark("ref", `${l.body.name} at encounter`), l.origin, false, true);
+      }
+    });
+    for (let j = gk; j < ghostPool.length; j++) ghostPool[j].visible = false;
+    // your orbit's plane against the target's
+    planeGroup.visible = false;
+    if (planesOn) updatePlanes().forEach(l => place(mark(l.node ? "ev xn" : "ref xn", l.text, l.key), l.pos, l.node, !!l.minor));
     // the launch site being chosen, or the one you launched from, turning with Earth
     const site = !launchEl.hidden ? lSiteSel() : sim.site;
     // (only once Earth is big enough on screen for the label not to crowd the middle of the view)
-    const earthPx = earthR / Math.max(1e-6, camPos.length()) / Math.tan(camera.fov * DEG / 2) * H / 2;
-    if (site && (earthPx > 60 || !launchEl.hidden)) place(mark("site", site.name), toScene(mul(siteAt(site, sim.t).r, RE * 1.004)));
+    const earthPx = pxSize(earthR, EARTH.pos);
+    if (site && (earthPx > 60 || !launchEl.hidden)) place(mark("site", site.name), toScene(mul(siteAt(site, sim.t).r, RE * 1.004)).add(EARTH.pos));
     // the reference direction
-    if (eqGroup.visible) place(mark("ref", "♈︎ reference direction"), new THREE.Vector3(14.3, 0, 0), false);
+    if (eqGroup.visible && eqArrowTip) place(mark("ref", viewBody === EARTH || viewBody === SUN ? "♈︎ reference direction" : "reference direction"), toScene(eqArrowTip).add(viewBody.pos), false);
     // the craft
     const cur = stateAt(sim.orbit, sim.t);
     place(mark("craft", focus === "craft" ? "" : "You"), toScene(cur.r).add(traj[0].origin));
@@ -2653,7 +3589,8 @@ select.field option { background: #0e121e; }
 
     // handles on the selected node
     const n = sim.sel;
-    const showH = n && !n.dead && n.screen && !nodeEls.get(n.id).hidden;
+    // (only for a burn round the body in view: seen from the Sun, handles on a burn at Mars would be a tangle)
+    const showH = n && !n.dead && n.screen && !nodeEls.get(n.id).hidden && legBefore(n).body === viewBody;
     HANDLES.forEach(h => { h.el.hidden = !showH; h.stem.style.display = showH ? "" : "none"; });
     if (showH) {
       const base = toScene(n.pre.r).add(legBefore(n).origin), dist = base.distanceTo(camPos);
@@ -2679,7 +3616,8 @@ select.field option { background: #0e121e; }
 
     // readouts
     $("met").textContent = fmtMet(sim.t - sim.met0);
-    $("roAltLbl").textContent = sim.orbit.body === MOON ? "Above the Moon" : "Altitude";
+    $("roDate").textContent = fmtDate(sim.t);
+    $("roAltLbl").textContent = sim.orbit.body === EARTH ? "Altitude" : `Above ${sim.orbit.body.the}`;
     $("roAlt").textContent = fmtKm(len(cur.r) - sim.orbit.body.R);
     $("roSpeed").textContent = fmtSpeed(len(cur.v));
     $("roSpent").textContent = fmtDv(sim.spent);
@@ -2772,10 +3710,9 @@ select.field option { background: #0e121e; }
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     step(dt);
-    // Earth turns once per sidereal day
-    earth.rotation.y = sim.t / SIDEREAL * TAU;
-    placeMoon();
-    if (focus !== "earth") {
+    viewBody = focusBody();
+    placeBodies();
+    if (focus === "craft") {
       const p = focusPoint();
       camera.position.add(p.clone().sub(focusPrev)); controls.target.copy(p); focusPrev.copy(p);
     }
@@ -2787,6 +3724,12 @@ select.field option { background: #0e121e; }
       if (viewAnim.t >= 1) { viewAnim = null; aim.goal = 0; }
     }
     const camMoved = controls.update();             // true while the view turns, zooms or glides to a stop
+    // near and far planes that suit the zoom, from a craft skimming a moon to the whole Solar System; the stars sit
+    // on a sphere round the camera, inside the far plane
+    const camD = camera.position.distanceTo(controls.target);
+    camera.near = clamp(camD * 0.002, 1e-4, 1e5); camera.far = Math.max(camD * 2e5, 1e7);
+    camera.updateProjectionMatrix();
+    stars.position.copy(camera.position); stars.scale.setScalar(camera.far * 0.4 / STAR_R);
     const running = sim.playing && !sim.ended;
     let aiming = false;
     if (Math.abs(aim.tx - aim.x) > 0.5 || Math.abs(aim.ty - aim.y) > 0.5) {   // glide to a new centre when a panel opens or closes
@@ -2810,7 +3753,7 @@ select.field option { background: #0e121e; }
   }
 
   // debug/test hook
-  window.__orbit = { sim, evalMoonShot, moonWindows, launch, SITES, moonShot, get planeShown() { return planeGroup.visible; }, get traj() { return traj; }, MOON, EARTH, MOON_ORB, moonAt, geoState, planMoon, planCircular, planReturn, get choice() { return choice; }, applyChoice, planLeg, findEncounter, setFocus, get focus() { return focus; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
+  window.__orbit = { sim, buildTrajectory, stateFromElements, refreshPanel, returnToParent, realiseSibling, porkchop, evalMoonShot, moonWindows, launch, SITES, moonShot, get planeShown() { return planesOn; }, get traj() { return traj; }, MOON, EARTH, MOON_ORB, moonAt, globalState, helio, byName, BODIES, SUN, NOW, fmtDate, get viewBody() { return viewBody; }, planMoon, planCircular, planTransfer, planSibling, lambert, matchPlane, get choice() { return choice; }, applyChoice, planLeg, findEncounter, setFocus, get focus() { return focus; }, camera, controls, project, THREE, addNode, execute, loadScenario, orbitFromState, stateAt, timeToNu, undo, history, setView, fitView, held, setThrust, wake, renderer, get renders() { return renders; }, RE, MU };
 
   loadScenario("leo");
   let seen = null;
