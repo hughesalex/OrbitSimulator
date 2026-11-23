@@ -519,7 +519,7 @@ select.field option { background: #0e121e; }
   <p>The Moon circles Earth every 27.3 days, about 384,000 km out. Inside its <b>sphere of influence</b> (the dashed ring round it) its gravity takes over, and your path bends round it; outside, only Earth counts. This is the patched-conic method Kerbal Space Program uses. A planned path that reaches the Moon shows a faint <span class="g">Moon at encounter</span> where it will be when you arrive, and the part of your path round the Moon is drawn about it.</p>
   <h3>Planes and launch windows</h3>
   <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
-  <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan or Tanegashima. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
+  <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan, Tanegashima or Sriharikota. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
   <h3>Getting a better look</h3>
   <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow Moon</b> or <b>Craft</b> keeps it in the centre as it moves.</p>
   <h3>Things to try</h3>
@@ -2334,6 +2334,7 @@ select.field option { background: #0e121e; }
     { name: "Wenchang", where: "Hainan, China", lat: 19.61, lon: 110.95 },
     { name: "Jiuquan", where: "Inner Mongolia, China", lat: 40.96, lon: 100.29 },
     { name: "Tanegashima", where: "Kagoshima, Japan", lat: 30.40, lon: 130.97 },
+    { name: "Sriharikota", where: "Andhra Pradesh, India", lat: 13.72, lon: 80.23 },
   ];
   const launchEl = $("launch"), lSite = $("lSite"), lWins = $("lWins");
   SITES.forEach((st, k) => { const o = document.createElement("option"); o.value = k; o.textContent = `${st.name}, ${st.where}`; lSite.appendChild(o); });
