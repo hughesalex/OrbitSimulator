@@ -546,7 +546,7 @@ select.field option { background: #0e121e; }
   <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
   <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan, Tanegashima or Sriharikota. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
   <h3>Getting a better look</h3>
-  <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow</b> keeps the craft, the Sun or any planet or moon in the centre as it moves; click a body's label on the map to follow it. Zoom out far enough and you see the whole Solar System, with a dated line ahead of the craft as it crosses between the planets. Following Earth, the path bends where it leaves Earth's influence: inside, it is drawn around Earth, at the few km/s you move relative to it; beyond, it is drawn around the Sun, where Earth's own 30 km/s round the Sun is added to that, so the line swings to follow Earth's orbit. The bend is where the drawing changes viewpoint, not a burn. Follow the Sun to see the whole path round it at once.</p>
+  <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow</b> keeps the craft, the Sun or any planet or moon in the centre as it moves; click a body's label on the map to follow it. Zoom out far enough and you see the whole Solar System, with a dated line ahead of the craft as it crosses between the planets. Following Earth, the path bends where it leaves Earth's influence: inside, it is drawn around Earth, at the few km/s you move relative to it; beyond, it is drawn around the Sun, where Earth's own 30 km/s round the Sun is added to that, so the line swings to follow Earth's orbit. The bend is where the drawing changes viewpoint, not a burn. If the burn to leave is a long way off, say at the next launch window to Mars, Earth will have moved on by then: the way out is drawn round a faint copy of Earth labelled "Earth when you leave", so the path round the Sun sits exactly where it will be, against the orbit lines. Follow the Sun to see the whole path round it at once.</p>
   <h3>Things to try</h3>
   <ul>
     <li><b>Raise the far side.</b> From low Earth orbit, add a node and pull prograde to +500 m/s. Watch apoapsis climb on the opposite side of Earth while the node point stays put.</li>
@@ -1039,12 +1039,13 @@ select.field option { background: #0e121e; }
   // Where to draw each leg, so the path reads as one unbroken line from the craft onward. The body you orbit now
   // (and the ones it circles) are drawn where they are now, and the first leg with them. After that:
   //  - entering a moon or planet, it is drawn where it will be then, so the path meets it;
-  //  - leaving a body for its parent, while you look at it from close by (the body you follow is that body or
-  //    one inside it), the path round the parent carries straight on from where it leaves, so it is drawn about
-  //    the parent as the parent is seen from the departure point then (the planets it reaches move with it);
-  //  - leaving while you look from further out (following the parent, or the Sun), the parent stays put, and the
-  //    planned legs round the body you leave are drawn about where that body will be when you leave.
-  // Only for a departure far in the future do these differ much from where things are now.
+  //  - leaving a planet for the space round the Sun, the Sun stays put, so the path round it has its true shape
+  //    against the orbit lines, whichever body you follow; the planned legs round the planet are drawn about where
+  //    it will be when you leave (a faint copy of it), so the way out joins the path round the Sun;
+  //  - leaving a moon for its planet while you follow the moon (or a moon of it), the path round the planet carries
+  //    straight on from where it leaves, so the planet's frame is shifted by the moon's motion until then; following
+  //    the planet or further out, the planet stays put and the moon is copied as above.
+  // Only for a departure far in the future is the copy far from where the body is now.
   function anchorLegs(V) {
     if (!traj.length) return;
     const now = sim.t, set = new Map();
@@ -1058,7 +1059,7 @@ select.field option { background: #0e121e; }
       if (C.parent === B) {                                  // into a moon or planet: where it will be then
         leg.anchor = add(prev.anchor, relState(C, te).r); leg.refT = te; leg.ghost = "meet";
       } else {                                               // out to the parent
-        const fromNow = traj.slice(0, k).every(l => l.body === B), close = B === V || isAncestor(B, V);
+        const fromNow = traj.slice(0, k).every(l => l.body === B), close = C !== SUN && (B === V || isAncestor(B, V));
         if (close || !set.has(C)) {
           leg.anchor = sub(prev.anchor, relState(B, te).r); leg.refT = te;
         } else {
@@ -3621,7 +3622,7 @@ select.field option { background: #0e121e; }
       if (l.ghost && l.refT > sim.t + 60 && l.body !== SUN && !ghosted.has(l.body)) {
         ghosted.add(l.body);
         ghostFor(gk++, l.body).position.copy(l.origin);
-        place(mark("ref", l.ghost === "leave" ? `${l.body.name} when you leave` : `${l.body.name} at encounter`), l.origin, false, true);
+        place(mark("ref", l.ghost === "leave" ? `${l.body.name} when you leave, in ${fmtDur(l.refT - sim.t, true)}` : `${l.body.name} at encounter`), l.origin, false, true);
       }
     });
     for (let j = gk; j < ghostPool.length; j++) ghostPool[j].visible = false;
