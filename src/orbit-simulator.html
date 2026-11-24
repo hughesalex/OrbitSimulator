@@ -546,7 +546,7 @@ select.field option { background: #0e121e; }
   <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
   <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan, Tanegashima or Sriharikota. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
   <h3>Getting a better look</h3>
-  <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow</b> keeps the craft, the Sun or any planet or moon in the centre as it moves; click a body's label on the map to follow it. Zoom out far enough and you see the whole Solar System, with a dated line ahead of the craft as it crosses between the planets.</p>
+  <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow</b> keeps the craft, the Sun or any planet or moon in the centre as it moves; click a body's label on the map to follow it. Zoom out far enough and you see the whole Solar System, with a dated line ahead of the craft as it crosses between the planets. The path is drawn as seen from the body you follow: following Earth, the way to Mars is drawn as it looks from Earth, which is itself racing round the Sun at 30 km/s, so the line carries smoothly on past the edge of Earth's influence and Mars is shown where it will be as seen from Earth. Follow the Sun to see the path's true shape, the half ellipse of a Hohmann transfer.</p>
   <h3>Things to try</h3>
   <ul>
     <li><b>Raise the far side.</b> From low Earth orbit, add a node and pull prograde to +500 m/s. Watch apoapsis climb on the opposite side of Earth while the node point stays put.</li>
@@ -1038,29 +1038,36 @@ select.field option { background: #0e121e; }
   function buildTrajectory() { wake(); traj = computeTraj(sim.orbit, sim.t, sim.nodes); }
   // Where to draw each leg, so the path reads as one unbroken line from the craft onward. The body you orbit now
   // (and the ones it circles) are drawn where they are now, and the first leg with them. After that:
+  //  - leaving the body you follow (or a moon of it) to cross to another planet or moon, the path is drawn as seen from
+  //    the body you follow, moving with it: at each moment, where the craft is less where that body is then. So the
+  //    line carries straight on at the edge of the sphere of influence, with no kink where the frame changes; a
+  //    planet or moon reached later is drawn where it will be then, as seen from there too. (Follow the Sun to see
+  //    the true shape of the path round it.) Such a leg has drift set, and its points move with the time along it;
   //  - entering a moon or planet, it is drawn where it will be then, so the path meets it;
-  //  - leaving a body for its parent, while you look at it from close by (the body you follow is that body or
-  //    one inside it), the path round the parent carries straight on from where it leaves, so it is drawn about
-  //    the parent as the parent is seen from the departure point then (the planets it reaches move with it);
-  //  - leaving while you look from further out (following the parent, or the Sun), the parent stays put, and the
-  //    planned legs round the body you leave are drawn about where that body will be when you leave.
-  // Only for a departure far in the future do these differ much from where things are now.
+  //  - leaving a body while you look from further out (following its parent, or the Sun), the parent stays put, and
+  //    the planned legs round the body you leave are drawn about where that body will be when you leave.
   function anchorLegs(V) {
     if (!traj.length) return;
-    const now = sim.t, set = new Map();
-    const B0 = traj[0].body;
+    const now = sim.t, set = new Map(), B0 = traj[0].body, Vnow = helioPos(V, now);
+    const seenFromV = chainOf(B0).includes(V);           // you follow the body you orbit, or one it circles
     chainOf(B0).forEach(b => set.set(b, helioPos(b, now)));
     traj.forEach((leg, k) => {
-      leg.ghost = null;
+      leg.ghost = null; leg.drift = null; leg.seenFrom = null;
       if (k === 0) { leg.anchor = set.get(B0); leg.refT = now; return; }
       const prev = traj[k - 1], B = prev.body, C = leg.body, te = leg.t0;
+      // round a body that V itself goes round, on the way across to another of its moons or planets: moving with V
+      const next = traj.slice(k).find(l => l.body !== C);
+      if (seenFromV && isAncestor(C, V) && next && next.body.parent === C) {
+        leg.anchor = Vnow; leg.refT = te; leg.drift = V;
+        return;
+      }
       if (C === B) { leg.anchor = prev.anchor; leg.refT = prev.refT; return; }
       if (C.parent === B) {                                  // into a moon or planet: where it will be then
-        leg.anchor = add(prev.anchor, relState(C, te).r); leg.refT = te; leg.ghost = "meet";
+        leg.anchor = add(anchorAt(prev, te), relState(C, te).r); leg.refT = te; leg.ghost = "meet"; leg.seenFrom = prev.drift;
       } else {                                               // out to the parent
         const fromNow = traj.slice(0, k).every(l => l.body === B), close = B === V || isAncestor(B, V);
         if (close || !set.has(C)) {
-          leg.anchor = sub(prev.anchor, relState(B, te).r); leg.refT = te;
+          leg.anchor = sub(anchorAt(prev, te), relState(B, te).r); leg.refT = te;
         } else {
           leg.anchor = set.get(C); leg.refT = now;
           if (fromNow) {                                     // draw the way out about the body as it will be then
@@ -1072,7 +1079,17 @@ select.field option { background: #0e121e; }
       set.set(C, leg.anchor);
     });
   }
-  const finalOrbit = () => traj[traj.length - 1];
+  // the offset (km) to add to a point of a leg at time t, for a leg drawn moving with the body you follow
+  const driftAt = (leg, t) => leg.drift ? sub(helioPos(leg.body, t), helioPos(leg.drift, t)) : null;
+  // where the leg's body is drawn at time t (relative to the Sun, before the shift to the view)
+  const anchorAt = (leg, t) => leg.drift ? add(leg.anchor, driftAt(leg, t)) : leg.anchor;
+  // a point of a leg, in the scene: at true anomaly nu (whose time is worked out if the leg drifts), or at r, t
+  const legTime = (leg, nu) => leg.t0 + timeToNu(leg.orb, leg.t0, nu);
+  function legPointAt(leg, r, t, out) {
+    const d = leg.drift ? driftAt(leg, t) : null;
+    return toScene(d ? add(r, d) : r, out).add(leg.origin);
+  }
+  const legPoint = (leg, nu, out) => legPointAt(leg, stateAtNu(leg.orb, nu).r, leg.drift ? legTime(leg, nu) : 0, out);
 
   // ---------- renderer ----------
   const canvas = document.getElementById("scene");
@@ -2985,7 +3002,7 @@ select.field option { background: #0e121e; }
     // refine between neighbouring samples by true anomaly
     const leg = best.leg, o = leg.orb;
     best.t = leg.t0 + timeToNu(o, leg.t0, best.nu);
-    best.pos = toScene(stateAtNu(o, best.nu).r).add(leg.origin);
+    best.pos = legPoint(leg, best.nu);
     return best;
   }
   // the spot on the current orbit, or on the final planned leg, where a new node could go
@@ -3153,7 +3170,7 @@ select.field option { background: #0e121e; }
     let flung = false;
     traj.forEach(leg => {
       const o = leg.orb, B = leg.body, mine = B === V, below = isAncestor(V, B);
-      if (!mine && !below) return;
+      if (!mine && !below && !leg.drift) return;            // (a path drawn moving with V counts too)
       if (mine && flung && V !== SUN) return;              // where a moon flings you afterwards can be huge
       if (below) flung = true;
       let r = 0;
@@ -3456,7 +3473,7 @@ select.field option { background: #0e121e; }
     // past a sphere-of-influence crossing, the path you're already on is drawn in silver rather than gold
     L.solid.material.color.set(k > 0 ? 0xd2dbe6 : 0xf0d49a);
     // the same path as last frame (a closed orbit as the craft moves round it, or an unchanged plan): reuse its points
-    const key = [o.e, o.p, ...o.P, ...o.Q, planned, full ? "full" : `${nuA.toFixed(4)} ${nuB.toFixed(4)}`].join();
+    const key = [o.e, o.p, ...o.P, ...o.Q, planned, full ? "full" : `${nuA.toFixed(4)} ${nuB.toFixed(4)}`, leg.drift ? `${leg.drift.name} ${leg.t0}` : ""].join();
     if (L.key === key) {
       leg.samples = L.samples; leg.full = full; leg.nuA = nuA; leg.nuB = nuB;
       if (planned) L.dashed.material.opacity = k === traj.length - 1 ? 0.95 : 0.45;
@@ -3474,7 +3491,10 @@ select.field option { background: #0e121e; }
         nu = 2 * Math.atan2(Math.sqrt(1 + o.e) * Math.sin(E / 2), Math.sqrt(1 - o.e) * Math.cos(E / 2));
       } else nu = nuA + (nuB - nuA) * j / ORBIT_N;
       nus[j] = nu;
-      toScene(stateAtNu(o, nu).r, tmp);
+      if (leg.drift) {                             // moving with the body you follow: its own motion taken off
+        const t = legTime(leg, nu);
+        toScene(add(stateAtNu(o, nu).r, driftAt(leg, t)), tmp);
+      } else toScene(stateAtNu(o, nu).r, tmp);
       pos[j * 3] = tmp.x; pos[j * 3 + 1] = tmp.y; pos[j * 3 + 2] = tmp.z;
     }
     L.g.attributes.position.needsUpdate = true;
@@ -3590,7 +3610,7 @@ select.field option { background: #0e121e; }
     // apsis, node and end markers for the current orbit, the final plan, and every pass round another body
     const B0 = traj[0].body;
     const shown = traj.map((l, k) => k).filter(k => k === 0 || k === traj.length - 1 || traj[k].body !== B0 || traj[k].end === "soi");
-    const at = (leg, nu) => toScene(stateAtNu(leg.orb, nu).r).add(leg.origin);
+    const at = (leg, nu) => legPoint(leg, nu);
     shown.forEach(k => {
       const leg = traj[k], o = leg.orb, cls = leg.planned ? "plan" : "", B = o.body, pre = B === B0 ? "" : B === SUN ? "Sun " : `${B.name} `;
       const full = k === 0 || k === traj.length - 1 || B !== B0;
@@ -3608,7 +3628,7 @@ select.field option { background: #0e121e; }
       if (leg.end === "impact") place(mark("impact", `${B === SUN ? "Into the Sun" : `Impact${B === EARTH ? "" : ` on ${B.the}`}`} in ${fmtDur(leg.endT - sim.t, true)}`, `end:${k}`), at(leg, leg.endNu));
       else if (leg.end === "soi" || leg.end === "more") {
         const nx = traj[k + 1], up = nx ? nx.body === B.parent : false;
-        place(mark(cls + " ev", up ? `Leaves ${poss(B)} influence` : nx ? `${nx.body.name} encounter in ${fmtDur(leg.endT - sim.t, true)}` : "and onward", leg.end === "soi" ? `soi:${k}` : `end:${k}`), at(leg, leg.endNu), true, up);
+        place(mark(cls + " ev", up ? `Leaves ${poss(B)} influence${nx.drift ? ` · from here, seen from ${nx.drift.the}` : ""}` : nx ? `${nx.body.name} encounter in ${fmtDur(leg.endT - sim.t, true)}` : "and onward", leg.end === "soi" ? `soi:${k}` : `end:${k}`), at(leg, leg.endNu), true, up);
       }
     });
     // bodies, and where each will be when a planned path reaches it
@@ -3621,7 +3641,7 @@ select.field option { background: #0e121e; }
       if (l.ghost && l.refT > sim.t + 60 && l.body !== SUN && !ghosted.has(l.body)) {
         ghosted.add(l.body);
         ghostFor(gk++, l.body).position.copy(l.origin);
-        place(mark("ref", l.ghost === "leave" ? `${l.body.name} when you leave` : `${l.body.name} at encounter`), l.origin, false, true);
+        place(mark("ref", l.ghost === "leave" ? `${l.body.name} when you leave` : `${l.body.name} at encounter${l.seenFrom ? `, as seen from ${l.seenFrom.the}` : ""}`), l.origin, false, true);
       }
     });
     for (let j = gk; j < ghostPool.length; j++) ghostPool[j].visible = false;
@@ -3646,7 +3666,7 @@ select.field option { background: #0e121e; }
       const el = nodeEl(n); seen.add(n.id);
       if (n.dead) { el.hidden = true; n.screen = null; return; }
       el.classList.toggle("sel", n === sim.sel);
-      const s = place(el, toScene(n.pre.r).add(legBefore(n).origin));
+      const s = place(el, legPointAt(legBefore(n), n.pre.r, n.t));
       el.querySelector(".tag").textContent = `Burn ${i + 1} · ${fmtDv(nodeDv(n))} · in ${fmtDur(n.t - sim.t, true)}`;
       n.screen = s;
     });
@@ -3658,7 +3678,7 @@ select.field option { background: #0e121e; }
     const showH = n && !n.dead && n.screen && !nodeEls.get(n.id).hidden && legBefore(n).body === viewBody;
     HANDLES.forEach(h => { h.el.hidden = !showH; h.stem.style.display = showH ? "" : "none"; });
     if (showH) {
-      const base = toScene(n.pre.r).add(legBefore(n).origin), dist = base.distanceTo(camPos);
+      const base = legPointAt(legBefore(n), n.pre.r, n.t), dist = base.distanceTo(camPos);
       const wpp = 2 * dist * Math.tan(camera.fov * DEG / 2) / H;    // scene units per pixel at the node
       // where each handle would go: 80 px along its burn direction, as seen from the camera
       const pts = HANDLES.map(h => {
