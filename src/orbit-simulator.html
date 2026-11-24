@@ -3134,6 +3134,9 @@ select.field option { background: #0e121e; }
   function markFocus() { followSel.value = focus === "craft" ? "craft" : focus.name; }
   // a comfortable distance to look at a body from: a few radii, or for the Sun the inner planets
   const viewDist = B => B === SUN ? 2.6 * AU / KM : B.R / KM * 5.5;
+  // how close the camera may come: outside the body you follow, or, following the craft, outside the body it goes
+  // round (out among the planets, where the craft is far from the Sun, as close as 1,000 km)
+  const minDistFor = () => focus === "craft" && viewBody === SUN ? 1 : viewBody.R / KM * (viewBody === SUN ? 1.6 : 1.15);
   function setFocus(kind, dist) {
     const wasB = focusBody();
     focus = kind; markFocus();
@@ -3141,7 +3144,7 @@ select.field option { background: #0e121e; }
     const p = focusPoint(), off = camera.position.clone().sub(controls.target), B = viewBody;
     const d = dist || (kind === "craft" ? Math.min(off.length(), Math.max(6, B.R / KM * 1.2)) : B === wasB ? off.length() : viewDist(B));
     controls.target.copy(p); camera.position.copy(p).add(off.setLength(d)); focusPrev.copy(p);
-    controls.minDistance = B.R / KM * (B === SUN ? 1.6 : 1.15);
+    controls.minDistance = minDistFor();
     wake();
   }
   followSel.addEventListener("change", () => setFocus(followSel.value === "craft" ? "craft" : byName[followSel.value]));
@@ -3221,7 +3224,7 @@ select.field option { background: #0e121e; }
     setWarp(sc.warp); setPlaying(true);
     buildTrajectory(); refreshPanel();
     focus = sc.body || EARTH; markFocus();
-    viewBody = focus; placeBodies(); controls.minDistance = focus.R / KM * 1.15;
+    viewBody = focus; placeBodies(); controls.minDistance = minDistFor();
     const p = focusPoint(); controls.target.copy(p); focusPrev.copy(p); viewAnim = null; markView("3d");
     const f = freeRect();   // stand back further when the panels leave less room
     camera.position.copy(viewDir("3d").multiplyScalar(sc.cam * Math.max(1, 0.8 / (f.w / f.h)) * Math.min(1.8, H / f.h)).add(p));
@@ -3808,6 +3811,7 @@ select.field option { background: #0e121e; }
     const dt = Math.min(0.1, (now - last) / 1000); last = now;
     step(dt);
     viewBody = focusBody();
+    controls.minDistance = minDistFor();     // (following the craft, this changes as it passes from body to body)
     placeBodies();
     if (focus === "craft") {
       const p = focusPoint();
