@@ -1482,7 +1482,12 @@ select.field option { background: #0e121e; }
     for (const B of near) if (B !== SUN && behindSphere(v, B.pos, B.R / KM)) return true;
     return false;
   };
+  // Labels already on screen this frame, as rectangles (px), so that a new one can keep clear of them.
   let placed = [];
+  const CH = 6.93;                                      // width of a character of the data font at 11 px
+  const LROWS = [0, 14, -14, 28, -28, 42, -42, 56, -56, 70, -70];
+  const hitsAny = (l, r, t, b) => placed.some(p => p.l < r && p.r > l && p.t < b && p.b > t);
+  function claim(l, r, t, b, txt, x, y) { placed.push({ l, r, t, b, txt, x, y }); }
   function place(el, v, dimBehind = true, minor = false) {
     const s = project(v, {});
     if (!s) { el.hidden = true; return null; }
@@ -1491,10 +1496,17 @@ select.field option { background: #0e121e; }
       const txt = el.lastChild.textContent;
       // the plan's marker repeats one already shown at the same spot (e.g. the periapsis a burn leaves alone): skip it
       if (placed.some(p => p.txt === txt && Math.abs(p.x - s.x) < 8 && Math.abs(p.y - s.y) < 8)) { el.hidden = true; return null; }
-      const hits = placed.filter(p => Math.abs(p.x - s.x) < 120 && Math.abs(p.y - s.y) < 13).length;
-      if (minor && placed.some(p => Math.abs(p.x - s.x) < 120 && Math.abs(p.y - s.y) < 40)) { el.hidden = true; return null; }   // a minor label gives way in a crowd
-      el.lastChild.style.transform = hits ? `translateY(${hits * 14}px)` : "";
-      placed.push({ x: s.x, y: s.y, txt });
+      if (minor && placed.some(p => p.l < s.x + 120 && p.r > s.x - 120 && p.t < s.y + 40 && p.b > s.y - 40)) { el.hidden = true; return null; }   // a minor label gives way in a crowd
+      // the text goes on the first row, level with its point or a line above or below, that is clear of other labels
+      const l = s.x + 9, r = l + txt.length * CH + 2;
+      let dy = txt ? LROWS.find(d => !hitsAny(l, r, s.y + d - 7, s.y + d + 7)) : 0;
+      if (dy === undefined) {
+        if (minor) { el.hidden = true; return null; }
+        dy = 0;
+      }
+      el.lastChild.style.transform = dy ? `translateY(${dy}px)` : "";
+      claim(s.x - 5, s.x + 5, s.y - 5, s.y + 5, txt, s.x, s.y);
+      if (txt) claim(l, r, s.y + dy - 7, s.y + dy + 7, null, s.x, s.y);
     }
     el.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
     if (dimBehind) el.classList.toggle("dim", behindEarth(v));
@@ -3588,13 +3600,30 @@ select.field option { background: #0e121e; }
     // orbit legs
     traj.forEach((leg, k) => sampleLeg(leg, k, k === 0));
     for (let k = traj.length; k < linePool.length; k++) { linePool[k].solid.visible = linePool[k].dashed.visible = false; }
+    // nodes (first, so a label for an event at the same spot, such as the encounter a burn ends, stacks below the burn's)
+    const seen = new Set();
+    sim.nodes.forEach((n, i) => {
+      const el = nodeEl(n); seen.add(n.id);
+      if (n.dead) { el.hidden = true; n.screen = null; return; }
+      el.classList.toggle("sel", n === sim.sel);
+      const s = place(el, toScene(n.pre.r).add(legBefore(n).origin));
+      const txt = `Burn ${i + 1} · ${fmtDv(nodeDv(n))} · in ${fmtDur(n.t - sim.t, true)}`;
+      el.querySelector(".tag").textContent = txt;
+      if (s) {
+        claim(s.x - 11, s.x + 11, s.y - 11, s.y + 11, null, s.x, s.y);
+        if (n !== sim.sel) claim(s.x + 15, s.x + 17 + txt.length * 6.6, s.y - 7, s.y + 7, txt, s.x, s.y);
+      }
+      n.screen = s;
+    });
+    nodeEls.forEach((el, id) => { if (!seen.has(id)) { el.remove(); nodeEls.delete(id); } });
     // apsis, node and end markers for the current orbit, the final plan, and every pass round another body
     const B0 = traj[0].body;
     const shown = traj.map((l, k) => k).filter(k => k === 0 || k === traj.length - 1 || traj[k].body !== B0 || traj[k].end === "soi");
     const at = (leg, nu) => toScene(stateAtNu(leg.orb, nu).r).add(leg.origin);
     shown.forEach(k => {
       const leg = traj[k], o = leg.orb, cls = leg.planned ? "plan" : "", B = o.body, pre = B === B0 ? "" : B === SUN ? "Sun " : `${B.name} `;
-      const full = k === 0 || k === traj.length - 1 || B !== B0;
+      // (not when the whole orbit is a few pixels across: its labels would only pile up on one spot)
+      const full = (k === 0 || k === traj.length - 1 || B !== B0) && (B === SUN || pxSize((o.e < 1 ? o.ra : 2 * o.rp) / KM, leg.origin) > 12);
       const ap = B === SUN ? "Aphelion" : `${pre}Ap`, pe = B === SUN ? "Perihelion" : `${pre}Pe`;
       if (full && o.e > 1e-4) {
         if (o.e < 1 && onLeg(leg, Math.PI)) place(mark(cls, `${ap} ${fmtKm(o.ra - B.R)}`, k ? "" : "ap"), at(leg, Math.PI));
@@ -3640,18 +3669,6 @@ select.field option { background: #0e121e; }
     const cur = stateAt(sim.orbit, sim.t);
     place(mark("craft", focus === "craft" ? "" : "You"), toScene(cur.r).add(traj[0].origin));
     for (let k = markUsed; k < markPool.length; k++) markPool[k].hidden = true;
-
-    // nodes
-    const seen = new Set();
-    sim.nodes.forEach((n, i) => {
-      const el = nodeEl(n); seen.add(n.id);
-      if (n.dead) { el.hidden = true; n.screen = null; return; }
-      el.classList.toggle("sel", n === sim.sel);
-      const s = place(el, toScene(n.pre.r).add(legBefore(n).origin));
-      el.querySelector(".tag").textContent = `Burn ${i + 1} · ${fmtDv(nodeDv(n))} · in ${fmtDur(n.t - sim.t, true)}`;
-      n.screen = s;
-    });
-    nodeEls.forEach((el, id) => { if (!seen.has(id)) { el.remove(); nodeEls.delete(id); } });
 
     // handles on the selected node
     const n = sim.sel;
