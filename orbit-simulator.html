@@ -298,6 +298,8 @@ select.field option { background: #0e121e; }
   color: inherit; font: inherit; text-align: left; cursor: pointer;
 }
 .opt:hover { border-color: var(--accent); }
+.opt.stale { opacity: 0.45; cursor: default; }
+.opt.stale:hover { border-color: var(--line); }
 .opt[aria-pressed="true"] { border-color: var(--plan); background: rgba(240, 164, 106, 0.12); }
 .opt .nm { grid-column: 1 / 4; font-size: 12px; font-weight: 500; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
 .opt .badge { font: 500 9px var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--sky); background: var(--accent); border-radius: 3px; padding: 1px 4px; }
@@ -2914,7 +2916,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     if (sim.ended) return null;
     if (!applying) closeChoice();
     if (sim.nodes.length >= MAX_NODES) { toast("That's the most nodes at once. Execute or delete one first."); return null; }
-    t = Math.max(t, sim.t + 1);
+    t = Math.max(t, applying ? sim.t : sim.t + 1);   // a planner's burn keeps its exact time; it was planned for that moment
     const n = { id: sim.nextId++, t, pro: dv.pro || 0, nrm: dv.nrm || 0, rad: dv.rad || 0 };
     sim.nodes.push(n); sim.sel = n;
     buildTrajectory(); refreshPanel();
@@ -3175,8 +3177,12 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     $("choice").scrollIntoView({ block: "nearest" });
     return true;
   }
+  // A way whose first burn the clock has already passed can't be flown as planned: moving the burn later would fire it
+  // at another point of the orbit, in another direction, and the path would no longer be the one described.
+  const staleOpt = o => o.nodes.some(x => x.t < sim.t);
   function applyChoice(i) {
     const c = choice, o = c.opts[i];
+    if (staleOpt(o)) { toast("The moment for that way's first burn has passed while the clock ran. Plan again for ways that start from now.", 9000); renderChoice(); return; }
     applying = true;
     sim.nodes.filter(n => c.ids.includes(n.id)).forEach(deleteNode);
     c.ids = [];
@@ -3206,6 +3212,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       v[0].textContent = `${fmtDv(o.dv)} · ${o.nodes.length} burn${o.nodes.length > 1 ? "s" : ""}`;
       v[1].textContent = fmtDur(o.doneT - sim.t, true);
       b.querySelector(".sub").textContent = o.note || "";
+      o.stale = staleOpt(o);
+      if (o.stale && i !== c.idx) { b.disabled = true; b.classList.add("stale"); b.querySelector(".sub").textContent = "Its first burn was due while the clock ran, so it can't be flown as planned. Plan again for fresh ways."; }
       b.addEventListener("click", () => applyChoice(i));
       list.appendChild(b);
     });
@@ -4514,6 +4522,8 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       }
       sim.t = tEnd;
     }
+    // ways on offer whose first burn the clock has now passed are greyed out
+    if (choice && choice.opts.some((o, i) => i !== choice.idx && !o.stale && staleOpt(o))) renderChoice();
     if (stopAt && !sim.ended) {
       // slow down to look at the node, but remember the warp so it comes back once the burn has fired
       setPlaying(false);
