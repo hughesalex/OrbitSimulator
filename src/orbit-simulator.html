@@ -528,7 +528,7 @@ select.field option { background: #0e121e; }
   <ol>
     <li>Click your <span class="g">orbit</span> to drop a <span class="o">manoeuvre node</span> there.</li>
     <li>Drag the coloured handles on the node (or use the buttons in the Manoeuvre panel). The <span class="o">dashed orange path</span> shows where you would go after the burn, and the Orbit panel shows the new numbers beside the current ones.</li>
-    <li>Press <b>Execute</b> to jump to the node and fire. Total Δv (change in velocity) is the "fuel" every mission budgets for.</li>
+    <li>Press <b>Execute</b> to jump to the node and fire. Or let the clock run: it stops at the node, and the <b>Play</b> button becomes <b>Fire burn</b>, so pressing it (or Space) fires the burn and carries on. Total Δv (change in velocity) is the "fuel" every mission budgets for.</li>
     <li>Not what you wanted? <b>Undo burn</b> puts the craft back where it was and the node back on the plan, so you can adjust it. It works for burns flown by hand too, and after a crash.</li>
   </ol>
   <h3>Plans with several burns</h3>
@@ -564,7 +564,7 @@ select.field option { background: #0e121e; }
     <li><b>The Oberth effect.</b> Put 100 m/s prograde at periapsis of the Molniya orbit, then the same at apoapsis. Burning where you are fastest changes your orbital energy far more.</li>
   </ul>
   <h3>Keys</h3>
-  <p><kbd>Space</kbd> pause · <kbd>,</kbd> <kbd>.</kbd> slower / faster warp · <kbd>W</kbd><kbd>S</kbd> prograde / retrograde · <kbd>Q</kbd><kbd>E</kbd> normal / anti-normal · <kbd>D</kbd><kbd>A</kbd> radial out / in · <kbd>Enter</kbd> execute node · <kbd>Delete</kbd> delete node · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo burn · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 3D / top-down / face-on view · <kbd>F</kbd> fit · drag to rotate, scroll to zoom.</p>
+  <p><kbd>Space</kbd> pause, or fire a burn the clock has stopped at · <kbd>,</kbd> <kbd>.</kbd> slower / faster warp · <kbd>W</kbd><kbd>S</kbd> prograde / retrograde · <kbd>Q</kbd><kbd>E</kbd> normal / anti-normal · <kbd>D</kbd><kbd>A</kbd> radial out / in · <kbd>Enter</kbd> execute node · <kbd>Delete</kbd> delete node · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo burn · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 3D / top-down / face-on view · <kbd>F</kbd> fit · drag to rotate, scroll to zoom.</p>
   <footer><button class="btn go" type="button" id="guideClose">Start flying</button></footer>
 </section>
 
@@ -1787,6 +1787,7 @@ select.field option { background: #0e121e; }
 
   function refreshPanel() {
     renderItinerary();
+    syncPlay();
     fillIncModes();
     $("nodeHint").textContent = sim.nodes.length
       ? (sim.nodes.length < MAX_NODES ? "Click or tap the orbit (or the dashed plan) to add another burn, or add one at:" : "That's the most burns at once. Execute or delete one first.")
@@ -3095,8 +3096,21 @@ select.field option { background: #0e121e; }
 
   // ---------- controls bar ----------
   const playBtn = $("play"), warpIn = $("warp"), warpLabel = $("warpLabel");
-  function setPlaying(p) { wake(); sim.playing = p; playBtn.textContent = p ? "Pause" : "Play"; }
-  playBtn.addEventListener("click", () => { if (!sim.ended) setPlaying(!sim.playing); });
+  // the clock has stopped at the next burn: Play (or Space) then fires it, as Execute does
+  const burnDue = () => { const n = sim.nodes[0]; return n && !n.dead && !sim.playing && n.t - sim.t < 0.5 ? n : null; };
+  function syncPlay() {
+    const playBtn = $("play"), due = !sim.ended && burnDue();     // (also called from refreshPanel, during start-up)
+    playBtn.textContent = sim.playing ? "Pause" : due ? "Fire burn" : "Play";
+    playBtn.classList.toggle("go", !!due);
+    playBtn.title = due ? `Fire burn ${nodeIndex(due)} (${fmtDv(nodeDv(due))}) and carry on, as Execute does (Space)` : "Play or pause the clock (Space)";
+  }
+  function setPlaying(p) { wake(); sim.playing = p; syncPlay(); }
+  function togglePlay() {
+    if (sim.ended) return;
+    const due = burnDue();
+    if (due) execute(due); else setPlaying(!sim.playing);
+  }
+  playBtn.addEventListener("click", togglePlay);
   // choosing a warp by hand cancels any warp waiting to come back after a burn
   function setWarp(i) { sim.warpIdx = clamp(i, 0, WARPS.length - 1); warpIn.value = sim.warpIdx; sim.warpBack = null; }
   warpIn.addEventListener("input", () => setWarp(+warpIn.value));
@@ -3379,7 +3393,7 @@ select.field option { background: #0e121e; }
     if (k === "1" || k === "2" || k === "3") { setView(["3d", "top", "plane"][+k - 1]); return; }
     if (k === "f") { fitView(); return; }
     if (KEYS[k]) { if (!e.repeat && !sim.ended) setPlaying(true); held.add(KEYS[k]); setThrust(); e.preventDefault(); return; }
-    if (e.key === " ") { e.preventDefault(); if (!sim.ended) setPlaying(!sim.playing); }
+    if (e.key === " ") { e.preventDefault(); togglePlay(); }
     else if (e.key === "," || e.key === "<") setWarp(sim.warpIdx - 1);
     else if (e.key === "." || e.key === ">") setWarp(sim.warpIdx + 1);
     else if (e.key === "Enter" && sim.sel && !(e.target.closest && e.target.closest("button"))) execute(sim.sel);
@@ -3436,7 +3450,7 @@ select.field option { background: #0e121e; }
       setPlaying(false);
       if (sim.warpIdx > 5) { const w = sim.warpIdx; setWarp(5); sim.warpBack = w; }
       sim.sel = stopAt; refreshPanel();
-      toast(`Reached node ${nodeIndex(stopAt)}. Press Execute to fire the ${fmtDv(nodeDv(stopAt))} burn, or move or delete it.`, 8000);
+      toast(`Reached node ${nodeIndex(stopAt)}. Press Fire burn (or Execute) to fire the ${fmtDv(nodeDv(stopAt))} burn, or move or delete it.`, 8000);
     }
     buildTrajectory();
   }
