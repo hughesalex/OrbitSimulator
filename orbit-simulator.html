@@ -317,6 +317,17 @@ select.field option { background: #0e121e; }
 .opt .bar.tm i:first-child { border-radius: 3px 0 0 3px; } .opt .bar.tm i:last-child { border-radius: 0 3px 3px 0; }
 .opt .v { font: 11px var(--font-data); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .opt .sub { grid-column: 1 / 4; font-size: 11px; color: var(--muted); line-height: 1.4; }
+#engineRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 4px; font-size: 11px; color: var(--muted); }
+#engineRow select { flex: 1 1 140px; min-width: 0; }
+#engineBox { margin: 0 0 8px; font-size: 11px; }
+#engineBox summary { cursor: pointer; color: var(--muted); }
+#engineNote { color: #c9c4b6; line-height: 1.4; margin: 4px 0 0; }
+.opt .rk { grid-column: 1 / 4; font-size: 11px; line-height: 1.4; display: flex; gap: 6px; align-items: baseline; }
+.opt .rk .lt { flex: none; width: 8px; height: 8px; border-radius: 50%; transform: translateY(-1px); }
+.opt .rk.g .lt { background: #7fcf7a; } .opt .rk.a .lt { background: #e8c25a; } .opt .rk.r .lt { background: var(--warn); }
+.opt .rk.r .rt { color: var(--warn); }
+.opt .yd { grid-column: 1 / 4; font-size: 11px; color: #c9c4b6; font-style: italic; line-height: 1.4; }
+#hiddenNote { font-size: 11px; color: var(--muted); margin: 2px 0 4px; }
 #choiceWhyBox { margin: 0 0 8px; font-size: 12px; line-height: 1.5; color: #c9c4b6; }
 #choiceWhyBox summary { cursor: pointer; color: var(--accent-hi); font-size: 12px; }
 #choiceWhyBox p { margin: 6px 0; }
@@ -462,12 +473,16 @@ select.field option { background: #0e121e; }
   <div class="sect" id="nodeSect">
     <div id="choice" hidden>
       <div class="ch-head"><span id="choiceTitle">Ways to do it</span><button class="btn small" type="button" id="choiceKeep" title="Keep the plan shown and close this comparison">Keep this one</button></div>
+      <div id="engineRow"><span>Engine</span><select class="field" id="engineSel" aria-label="Engine, for the fuel each way would need"></select>
+        <label class="chk"><input type="checkbox" id="hideImp"> hide impossible</label></div>
+      <details id="engineBox"><summary id="engineSum"></summary><div id="engineNote"></div></details>
       <details id="choiceWhyBox" hidden><summary>Why these ways?</summary><div id="choiceWhy"></div></details>
       <div id="pork" hidden>
         <canvas id="porkCv" aria-label="Porkchop plot: fuel needed for each departure date and trip time. Click to plan that transfer."></canvas>
         <div class="pk-axes"><span id="pkX"></span><span id="pkScale"></span></div>
       </div>
       <div id="choiceList"></div>
+      <div id="hiddenNote" hidden></div>
     </div>
     <div id="itinWrap" hidden>
       <div class="legend"><span><i class="b"></i>Burn: fires the engine</span><span><i class="e"></i>Event: no burn</span></div>
@@ -636,6 +651,11 @@ select.field option { background: #0e121e; }
   <p><b>Burn low.</b> You leave from a low parking orbit because a burn where you move fastest adds the most energy (the <b>Oberth effect</b>): about 3.6 km/s from low Earth orbit sends you on to Mars, though Mars needs only about 2.9 km/s on top of escape speed far from Earth.</p>
   <p><b>Going inward is not downhill.</b> Earth carries you round the Sun at 30 km/s, and to fall toward the Sun you must cancel some of that. From low Earth orbit, stopping at Mercury costs more than twice what it takes just to reach Jupiter. The idea of going outward first and burning at aphelion, far out where you move slowly, is a <b>bi-elliptic transfer</b>, and it only pays when the two orbits differ in size by about 12 times or more. Mercury's orbit is only 2.6 times smaller than Earth's, so for Mercury it costs more; but to fall into the Sun itself it saves fuel, and the planner shows both side by side. Real missions to Mercury and the outer planets use <b>gravity assists</b>, swinging past other planets on the way; the planner leaves those out for now.</p>
   <p>The planner goes one step at a time, from a body to its neighbour, its parent or its moons: to reach Titan from Earth, transfer to Saturn first and plan again from there.</p>
+  <h3>What the fuel means for a real rocket</h3>
+  <p><b>The rocket equation.</b> A rocket speeds up by throwing fuel out of the back, so the Δv it can reach depends on how fast its exhaust leaves and how much of it is fuel. For every tonne that arrives you need e<sup>Δv/v<sub>e</sub></sup> tonnes at departure, where v<sub>e</sub> is the exhaust speed: the fuel grows exponentially with the Δv. With a hydrogen/oxygen engine (4.4 km/s exhaust), 4.4 km/s of Δv needs 2.7 tonnes at departure per tonne that arrives; twice that needs 7.4 tonnes, and three times that 20. Pick an <b>Engine</b> above the ways on offer to see what each one would take: green is routine today, amber needs a big rocket or several stages, and red is not practical with that engine. Nothing is ever ruled out, so you can still fly a red plan and see why no one does.</p>
+  <p><b>Staging.</b> Tanks and engines weigh something too, and a single stage can carry only about nine tonnes of fuel per tonne of everything else. So rockets come in stages, dropping each empty one so the next does not have to push it. That is why the Saturn V had three, and why a Mars probe rides a separate upper stage before using its own small engine.</p>
+  <p><b>Cheating the equation.</b> Real missions avoid much of the Δv shown here. <b>Aerobraking</b> uses a planet's upper atmosphere to slow down for free instead of braking with the engine (Mars Reconnaissance Orbiter did most of its slowing this way). <b>Gravity assists</b> steal speed from a planet as you swing past it: Voyager, Cassini and New Horizons could never have carried the fuel to go direct. Neither is in this simulator yet.</p>
+  <p><b>Fast exhaust, gentle push.</b> An ion engine's exhaust is ten times faster than chemistry, so it needs far less fuel, but its push is like the weight of a sheet of paper. Here every burn is instant; an ion engine would take weeks or months for the same change, spiralling slowly outward, and that slow climb out of a planet's pull costs more Δv than an instant burn deep in it.</p>
   <h3>Planes and launch windows</h3>
   <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
   <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan, Tanegashima or Sriharikota. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
@@ -3245,6 +3265,61 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     c.idx = i; inspect = null;
     renderChoice(); refreshPanel();
   }
+  // ---------- what the fuel means for a real rocket ----------
+  // The rocket equation: a burn of Δv with exhaust speed ve leaves e^(-Δv/ve) of the mass you started with. So for
+  // every tonne that arrives (craft, engine and empty tanks) you need e^(Δv/ve) tonnes at departure; the rest is fuel.
+  const G0 = 9.80665;
+  const ENGINES = [
+    { k: "hypergol", name: "Hypergolic (Apollo)", short: "a storable hypergolic engine", isp: 314,
+      note: "Fuel and oxidiser that ignite on contact and keep for years: the Apollo service module's engine, and most probes' braking engines. Simple and reliable, but a slow exhaust." },
+    { k: "merlin", name: "Kerosene/oxygen (Merlin)", short: "a kerosene/oxygen engine", isp: 348,
+      note: "Falcon 9's upper-stage Merlin. Dense fuel and lots of thrust, but the oxygen boils off, so it is for burns within hours of launch, not years later at a planet." },
+    { k: "rl10", name: "Hydrogen/oxygen (RL10)", short: "a hydrogen/oxygen engine", isp: 450,
+      note: "The RL10 on the Centaur upper stage, which sent Voyager, Cassini and New Horizons on their way: the fastest exhaust of any chemical rocket. Liquid hydrogen is bulky and boils away, so long trips are hard." },
+    { k: "nerva", name: "Nuclear thermal (NERVA)", short: "a nuclear thermal engine", isp: 850, unflown: true,
+      note: "A reactor heats hydrogen to about twice the exhaust speed of chemistry. NERVA was ground-tested in the 1960s but never flown; NASA is working on the idea again for crews to Mars." },
+    { k: "ion", name: "Ion (Dawn)", short: "an ion thruster", isp: 3100,
+      note: "Dawn's xenon ion engines: ten times the exhaust speed of chemistry, but the push of a sheet of paper. A burn shown here as an instant takes weeks or months, spiralling slowly, and the slow climb out of a planet's pull costs much more Δv than the instant burn shown." },
+    { k: "fusion", name: "Fusion (speculative)", short: "a fusion drive", isp: 20000, unflown: true,
+      note: "Speculative: designs such as the Direct Fusion Drive aim at exhaust speeds near 200 km/s. No fusion rocket exists, and the thrust would still be low." },
+    { k: "antimatter", name: "Antimatter (best guess)", short: "an antimatter rocket", isp: 1e7, unflown: true,
+      note: "Best guess: a beamed-core design, whose exhaust leaves at about a third of the speed of light, so the fuel hardly matters for any trip here. None has been built, and all the antimatter ever made would not fill a teaspoon a billion times over." },
+  ];
+  let engineK = "rl10";
+  try { const e = localStorage.getItem("orbitsim.engine"); if (ENGINES.some(x => x.k === e)) engineK = e; } catch (e) {}
+  const engine = () => ENGINES.find(x => x.k === engineK);
+  const exhaustTxt = E => E.isp >= 1e6 ? "exhaust at about a third of light speed" : `${(E.isp * G0 / 1000).toFixed(E.isp * G0 < 1e4 ? 1 : 0)} km/s exhaust`;
+  const fmtTonnes = R => R >= 1e6 ? "over a million tonnes" : `${R < 10 ? R.toFixed(1) : nf0.format(R)} tonnes`;
+  function rocketFor(dvMs) {
+    const E = engine(), ve = E.isp * G0, R = Math.exp(dvMs / ve), fuel = 1 - 1 / R;
+    // a single stage can carry about 9 tonnes of fuel per tonne of everything else: a mass ratio past 3 needs a big
+    // rocket or several stages, and past about 10 none has been built
+    const light = R <= 3 ? "g" : R <= 10 ? "a" : "r";
+    const tons = R < 1.0005 ? "barely more than 1 tonne" : fmtTonnes(R);
+    const per = `${tons} at departure for every tonne that arrives (${fuel < 0.001 ? "under 0.1" : fuel > 0.999 ? "over 99.9" : (fuel * 100).toFixed(fuel < 0.1 || fuel > 0.99 ? 1 : 0)}% fuel)`;
+    const verdict = light === "g" ? (E.unflown ? "Little fuel needed, if the engine existed" : "Routine today") : light === "a" ? "Hard: needs a big rocket or several stages" : `Not practical with ${E.short}`;
+    return { light, text: `${verdict}. ${per[0].toUpperCase()}${per.slice(1)}.`,
+      title: `The rocket equation: with ${exhaustTxt(E)}, ${fmtDv(dvMs)} needs a mass ratio of ${R < 1e6 ? R.toFixed(R < 10 ? 2 : 0) : "over a million"} : 1.` };
+  }
+  // what that much Δv compares with, among missions that have flown (total for the plan, independent of the engine)
+  function yardstick(dvMs) {
+    const k = dvMs / 1000;
+    if (k <= 0.4) return "A small trim: about what a satellite spends over a few years keeping its station.";
+    if (k <= 1.2) return "About what a probe spends braking into orbit at Mars (Mars Reconnaissance Orbiter: about 1 km/s).";
+    if (k <= 2.5) return "Like a satellite's own climb to geostationary orbit from where its rocket leaves it (about 1.8 km/s).";
+    if (k <= 3.8) return "About what a Centaur or Falcon upper stage gives a probe leaving low orbit for the Moon or Mars (3.1 to 3.6 km/s).";
+    if (k <= 6.5) return "Like Apollo's whole trip from Earth orbit: 3.1 km/s from the Saturn V's third stage, then about 2.8 km/s from the service module to stop at the Moon and come home.";
+    if (k <= 9.5) return "About the 9 km/s New Horizons got beyond low Earth orbit: the fastest launch ever, with two upper stages.";
+    if (k <= 15) return "Beyond any single chemical stage flown: only done with several stages, or with gravity assists from planets on the way.";
+    return "Far beyond anything flown: real missions to such places use gravity assists and years of travel instead.";
+  }
+  const engineSel = $("engineSel");
+  ENGINES.forEach(E => { const o = document.createElement("option"); o.value = E.k; o.textContent = E.name; engineSel.appendChild(o); });
+  function syncEngine() { engineSel.value = engineK; $("engineNote").textContent = engine().note; $("engineSum").textContent = `${exhaustTxt(engine())} · about this engine`; }
+  syncEngine();
+  engineSel.addEventListener("change", () => { engineK = engineSel.value; try { localStorage.setItem("orbitsim.engine", engineK); } catch (e) {} syncEngine(); renderChoice(); });
+  $("hideImp").addEventListener("change", () => renderChoice());
+
   function renderChoice() {
     const c = choice, list = $("choiceList");
     $("choice").hidden = !c;
@@ -3252,14 +3327,20 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     list.innerHTML = "";
     const maxDv = Math.max(...c.opts.map(o => o.dv)), maxT = Math.max(...c.opts.map(o => o.doneT - sim.t));
     const pct = (x, m) => `${Math.max(3, x / m * 100).toFixed(1)}%`;
+    let hidden = 0;
     c.opts.forEach((o, i) => {
       const b = document.createElement("button");
       b.type = "button"; b.className = "opt"; b.setAttribute("aria-pressed", String(i === c.idx));
       b.innerHTML = `<span class="nm"></span>
         <span class="k" title="Total change in speed: the fuel the plan needs">Δv</span><span class="bar dv"><i style="width:${pct(o.dv, maxDv)}"></i></span><span class="v"></span>
         <span class="k" title="Time from now until the plan is done: the pale part is waiting for the first burn, the bright part under way">Time</span><span class="bar tm"><i class="w" style="width:${(Math.max(0, o.startT - sim.t) / maxT * 100).toFixed(1)}%"></i><i style="width:${pct(o.doneT - Math.max(o.startT, sim.t), maxT)}"></i></span><span class="v"></span>
+        <span class="rk"><i class="lt"></i><span class="rt"></span></span><span class="yd"></span>
         <span class="sub"></span>`;
       const nm = b.querySelector(".nm"), v = b.querySelectorAll(".v");
+      const rk = rocketFor(o.dv), rkEl = b.querySelector(".rk");
+      rkEl.classList.add(rk.light); rkEl.title = rk.title; b.querySelector(".rt").textContent = rk.text;
+      b.querySelector(".yd").textContent = yardstick(o.dv);
+      if (rk.light === "r" && $("hideImp").checked && i !== c.idx) { hidden++; return; }
       nm.innerHTML = '<span class="nt"></span>'; nm.firstChild.textContent = o.name;
       if (c.pork && o.at) nm.firstChild.insertAdjacentHTML("afterbegin", `<span class="num" title="Marked ${i + 1} on the porkchop plot">${i + 1}</span>`);
       if (o.cheap) nm.insertAdjacentHTML("beforeend", '<span class="badge">least fuel</span>');
@@ -3272,6 +3353,9 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
       b.addEventListener("click", () => applyChoice(i));
       list.appendChild(b);
     });
+    const hn = $("hiddenNote");
+    hn.hidden = !hidden;
+    hn.textContent = `${hidden} way${hidden > 1 ? "s" : ""} hidden: not practical with ${engine().short}. Untick "hide impossible" to see ${hidden > 1 ? "them" : "it"}, or pick another engine.`;
     drawPork();
   }
   // ---------- the porkchop plot ----------
