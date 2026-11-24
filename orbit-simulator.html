@@ -2192,6 +2192,42 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     return traj;
   }
   function buildTrajectory() { wake(); traj = computeTraj(sim.orbit, sim.t, sim.nodes); }
+  // Where to draw each leg, so the path reads as one unbroken line from the craft onward. The body you orbit now
+  // (and the ones it circles) are drawn where they are now, and the first leg with them. After that:
+  //  - entering a moon or planet, it is drawn where it will be then, so the path meets it;
+  //  - leaving a body for its parent, while you look at it from close by (the body you follow is that body or
+  //    one inside it), the path round the parent carries straight on from where it leaves, so it is drawn about
+  //    the parent as the parent is seen from the departure point then (the planets it reaches move with it);
+  //  - leaving while you look from further out (following the parent, or the Sun), the parent stays put, and the
+  //    planned legs round the body you leave are drawn about where that body will be when you leave.
+  // Only for a departure far in the future do these differ much from where things are now.
+  function anchorLegs(V) {
+    if (!traj.length) return;
+    const now = sim.t, set = new Map();
+    const B0 = traj[0].body;
+    chainOf(B0).forEach(b => set.set(b, helioPos(b, now)));
+    traj.forEach((leg, k) => {
+      leg.ghost = null;
+      if (k === 0) { leg.anchor = set.get(B0); leg.refT = now; return; }
+      const prev = traj[k - 1], B = prev.body, C = leg.body, te = leg.t0;
+      if (C === B) { leg.anchor = prev.anchor; leg.refT = prev.refT; return; }
+      if (C.parent === B) {                                  // into a moon or planet: where it will be then
+        leg.anchor = add(prev.anchor, relState(C, te).r); leg.refT = te; leg.ghost = "meet";
+      } else {                                               // out to the parent
+        const fromNow = traj.slice(0, k).every(l => l.body === B), close = B === V || isAncestor(B, V);
+        if (close || !set.has(C)) {
+          leg.anchor = sub(prev.anchor, relState(B, te).r); leg.refT = te;
+        } else {
+          leg.anchor = set.get(C); leg.refT = now;
+          if (fromNow) {                                     // draw the way out about the body as it will be then
+            const a = add(leg.anchor, relState(B, te).r);
+            for (let j = 1; j < k; j++) { traj[j].anchor = a; traj[j].refT = te; traj[j].ghost = "leave"; }
+          }
+        }
+      }
+      set.set(C, leg.anchor);
+    });
+  }
   const finalOrbit = () => traj[traj.length - 1];
 
   // ---------- renderer ----------
@@ -4688,6 +4724,7 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     camera.updateMatrixWorld();     // project with where the camera is now, not where it was last frame
     camPos.copy(camera.position);
     markUsed = 0; placed = [];
+    anchorLegs(viewBody);
     traj.forEach(leg => sceneOf(leg.anchor, leg.origin));
     // orbit legs
     traj.forEach((leg, k) => sampleLeg(leg, k, k === 0));
@@ -4723,10 +4760,10 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     let gk = 0;
     const ghosted = new Set();
     traj.forEach(l => {
-      if (l.refT > sim.t + 1 && l.body !== SUN && !ghosted.has(l.body)) {
+      if (l.ghost && l.refT > sim.t + 60 && l.body !== SUN && !ghosted.has(l.body)) {
         ghosted.add(l.body);
         ghostFor(gk++, l.body).position.copy(l.origin);
-        place(mark("ref", `${l.body.name} at encounter`), l.origin, false, true);
+        place(mark("ref", l.ghost === "leave" ? `${l.body.name} when you leave` : `${l.body.name} at encounter`), l.origin, false, true);
       }
     });
     for (let j = gk; j < ghostPool.length; j++) ghostPool[j].visible = false;
