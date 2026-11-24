@@ -207,6 +207,10 @@ select.field option { background: #0e121e; }
 .opt.stale { opacity: 0.45; cursor: default; }
 .opt.stale:hover { border-color: var(--line); }
 .opt[aria-pressed="true"] { border-color: var(--plan); background: rgba(240, 164, 106, 0.12); }
+.opt .num { display: inline-block; vertical-align: 1px; margin-right: 6px; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--plan); box-sizing: border-box;
+  font: 600 9px/12px var(--font-data); text-align: center; color: var(--plan); background: #0b0f1a; }
+.opt .nt { flex: 0 1 auto; min-width: 0; }
+.opt[aria-pressed="true"] .num { border-color: #fff; color: #fff; }
 .opt .nm { grid-column: 1 / 4; font-size: 12px; font-weight: 500; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
 .opt .badge { font: 500 9px var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--sky); background: var(--accent); border-radius: 3px; padding: 1px 4px; }
 .opt .k { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
@@ -534,7 +538,7 @@ select.field option { background: #0e121e; }
   <p>The Moon circles Earth every 27.3 days, about 384,000 km out. Inside its <b>sphere of influence</b> (the dashed ring round it) its gravity takes over, and your path bends round it; outside, only Earth counts. The same goes all the way up: outside Earth's sphere of influence (about 925,000 km) only the Sun pulls, and inside Jupiter's only Jupiter, until you reach one of its moons. This is the patched-conic method Kerbal Space Program uses. A planned path that reaches another body shows a faint copy of it where it will be when you arrive, and the part of your path round it is drawn about that copy.</p>
   <h3>Getting to the planets</h3>
   <p><b>Launch windows.</b> The cheapest way from one planet to another is close to a <b>Hohmann transfer</b>: half an ellipse round the Sun that just touches both orbits. It only works if the target will be at the far end when you get there, so it can only start when the two planets are lined up just right, which happens once every <b>synodic period</b>: every 2 years 50 days for Earth and Mars, every 1 year 219 days for Venus, every 13 months for Jupiter. Leave at the wrong time and the fuel bill can double.</p>
-  <p><b>Fuel against time.</b> A quicker path is a fatter ellipse that cuts across the target's orbit at a steeper angle, so you pay twice: more to leave, and more to stop when you get there. The <b>porkchop plot</b> under each plan shows the fuel for every departure date (across) and trip time (up), darker being cheaper: the dark islands are the launch windows. Click anywhere on it to plan that one.</p>
+  <p><b>Fuel against time.</b> A quicker path is a fatter ellipse that cuts across the target's orbit at a steeper angle, so you pay twice: more to leave, and more to stop when you get there. The <b>porkchop plot</b> under each plan shows the fuel for every departure date (across) and trip time (up), brighter where it takes less fuel: the bright islands are the launch windows. The numbered rings on it are the ways listed above it. Click a ring to show that way, or anywhere else to plan that departure.</p>
   <p><b>Burn low.</b> You leave from a low parking orbit because a burn where you move fastest adds the most energy (the <b>Oberth effect</b>): about 3.6 km/s from low Earth orbit sends you on to Mars, though Mars needs only about 2.9 km/s on top of escape speed far from Earth.</p>
   <p><b>Going inward is not downhill.</b> Earth carries you round the Sun at 30 km/s, and to fall toward the Sun you must cancel some of that. From low Earth orbit, stopping at Mercury costs more than twice what it takes just to reach Jupiter. The idea of going outward first and burning at aphelion, far out where you move slowly, is a <b>bi-elliptic transfer</b>, and it only pays when the two orbits differ in size by about 12 times or more. Mercury's orbit is only 2.6 times smaller than Earth's, so for Mercury it costs more; but to fall into the Sun itself it saves fuel, and the planner shows both side by side. Real missions to Mercury and the outer planets use <b>gravity assists</b>, swinging past other planets on the way; the planner leaves those out for now.</p>
   <p>The planner goes one step at a time, from a body to its neighbour, its parent or its moons: to reach Titan from Earth, transfer to Saturn first and plan again from there.</p>
@@ -552,7 +556,7 @@ select.field option { background: #0e121e; }
     <li><b>Come home.</b> From the low lunar orbit, transfer to Earth. Braking into orbit at Earth costs about 3 km/s more than the trip itself, which is why Apollo let the atmosphere do it.</li>
     <li><b>Waiting for a window.</b> Try the same from the ISS-like orbit. Its tilt differs from the Moon's, so the planner waits days until the Moon comes round to where your orbit's plane crosses its path.</li>
     <li><b>Launch to the Moon.</b> Press <b>Launch…</b>, pick Baikonur and <b>The Moon</b>, and launch at the first time offered. Compare with the ISS-like start: the slow transfer now leaves within the hour instead of days later. Press <b>Planes</b> to see why: the line of nodes points to where the Moon will be.</li>
-    <li><b>Mars, and the window.</b> From the equatorial parking orbit, transfer to Mars. A window opens in late 2026, and the plan lists the cheapest trip, the faster ones and their cost. Open <b>Why these ways?</b> and the porkchop plot, then click a point outside the dark island to see what leaving at the wrong time costs.</li>
+    <li><b>Mars, and the window.</b> From the equatorial parking orbit, transfer to Mars. A window opens in late 2026, and the plan lists the cheapest trip, the faster ones and their cost. Open <b>Why these ways?</b> and the porkchop plot, then click a point outside the bright island to see what leaving at the wrong time costs.</li>
     <li><b>Mercury: easy to reach, hard to stop at.</b> From the same orbit, plan Mercury with <b>stay in orbit</b> unticked, then ticked. Reaching it costs about 5 km/s, but you arrive so fast that stopping more than doubles the bill. Compare the bi-elliptic way, out to Jupiter's distance first.</li>
     <li><b>Down to the Sun.</b> Untick <b>stay in orbit</b> and pick the Sun under <b>Transfer to</b>, to dive within 6 million km of it, as Parker Solar Probe does. Falling straight in costs about 16 km/s from the equatorial orbit; going out to 20 AU first and braking there costs under 10 km/s, but takes 33 years.</li>
     <li><b>A tour of Jupiter's moons.</b> Start round Ganymede and transfer to Europa, then Callisto: the same windows and trade-offs, in days instead of years.</li>
@@ -2082,7 +2086,8 @@ select.field option { background: #0e121e; }
         <span class="k" title="Time from now until the plan is done: the pale part is waiting for the first burn, the bright part under way">Time</span><span class="bar tm"><i class="w" style="width:${(Math.max(0, o.startT - sim.t) / maxT * 100).toFixed(1)}%"></i><i style="width:${pct(o.doneT - Math.max(o.startT, sim.t), maxT)}"></i></span><span class="v"></span>
         <span class="sub"></span>`;
       const nm = b.querySelector(".nm"), v = b.querySelectorAll(".v");
-      nm.textContent = o.name;
+      nm.innerHTML = '<span class="nt"></span>'; nm.firstChild.textContent = o.name;
+      if (c.pork && o.at) nm.firstChild.insertAdjacentHTML("afterbegin", `<span class="num" title="Marked ${i + 1} on the porkchop plot">${i + 1}</span>`);
       if (o.cheap) nm.insertAdjacentHTML("beforeend", '<span class="badge">least fuel</span>');
       if (o.quick) nm.insertAdjacentHTML("beforeend", '<span class="badge">quickest</span>');
       v[0].textContent = `${fmtDv(o.dv)} · ${o.nodes.length} burn${o.nodes.length > 1 ? "s" : ""}`;
@@ -2096,7 +2101,7 @@ select.field option { background: #0e121e; }
     drawPork();
   }
   // ---------- the porkchop plot ----------
-  // Fuel for every departure date (across) and trip time (up), dark where it is cheap, with the offered ways marked.
+  // Fuel for every departure date (across) and trip time (up), bright where it is cheap, with the offered ways marked.
   // The cheap islands repeat once per synodic period; the ridge through the middle of an island is where the path
   // would go exactly halfway round, which needs a costly change of plane.
   const porkCv = $("porkCv");
@@ -2129,12 +2134,22 @@ select.field option { background: #0e121e; }
       x.beginPath(); x.moveTo(X(t), h); x.lineTo(X(t), h - 6); x.stroke();
       x.fillStyle = "rgba(232,226,210,0.55)"; x.font = "9px IBM Plex Mono, monospace"; x.fillText(String(y), X(t) + 2, h - 2);
     }
-    c.opts.forEach((o, i) => {
-      if (!o.at) return;
-      const px = X(o.at.td), py = Y(o.at.tof), on = i === c.idx;
-      x.beginPath(); x.arc(px, py, on ? 5 : 3.5, 0, TAU);
+    // each way on offer, numbered as on its card: a dark disc so it reads on bright and dark parts alike, the one
+    // shown on the map in white and drawn last, on top
+    const order = c.opts.map((o, i) => i).filter(i => c.opts[i].at).sort((a, b) => (a === c.idx) - (b === c.idx));
+    c.markers = [];
+    x.textAlign = "center"; x.textBaseline = "middle";
+    order.forEach(i => {
+      const o = c.opts[i], on = i === c.idx, r = on ? 8 : 7;
+      const px = clamp(X(o.at.td), r + 2, w - r - 2), py = clamp(Y(o.at.tof), r + 2, h - r - 2);   // whole, even at the edge
+      x.beginPath(); x.arc(px, py, r + 1.5, 0, TAU); x.fillStyle = "rgba(0,0,0,0.55)"; x.fill();      // soft halo
+      x.beginPath(); x.arc(px, py, r, 0, TAU); x.fillStyle = "#0b0f1a"; x.fill();
       x.strokeStyle = on ? "#fff" : "#f0a46a"; x.lineWidth = on ? 2 : 1.5; x.stroke();
+      x.fillStyle = on ? "#fff" : "#f0a46a"; x.font = "600 9px IBM Plex Mono, monospace";
+      x.fillText(String(i + 1), px, py + 0.5);
+      c.markers.push({ i, px, py });
     });
+    x.textAlign = "start"; x.textBaseline = "alphabetic";
     $("pkX").textContent = `departure ${fmtDate(pk.t0, false)} → ${fmtDate(pk.t0 + pk.span, false)} · trip ${fmtDur(pk.tofLo, true)} to ${fmtDur(pk.tofHi, true)} (up)`;
     $("pkScale").textContent = `${(lo).toFixed(1)}–${hi.toFixed(0)} km/s`;
   }
@@ -2142,9 +2157,12 @@ select.field option { background: #0e121e; }
     const c = choice;
     if (!c || !c.pork || !c.pick) return;
     const r = porkCv.getBoundingClientRect(), pk = c.pork.pk;
+    // on one of the numbered markers: show that way
+    const mx = e.clientX - r.left, my = e.clientY - r.top, hit = (c.markers || []).find(m => Math.hypot(m.px - mx, m.py - my) <= 9);
+    if (hit) { applyChoice(hit.i); return; }
     const td = pk.t0 + (e.clientX - r.left) / r.width * pk.span, tof = pk.tofLo + (1 - (e.clientY - r.top) / r.height) * (pk.tofHi - pk.tofLo);
     const got = c.pick(td, tof);
-    if (!got) { toast("That one can't be flown from this orbit: try a darker spot."); return; }
+    if (!got) { toast("That one can't be flown from this orbit: try a brighter spot."); return; }
     const o = { name: "Your pick from the plot", nodes: got.nodes, doneT: got.doneT, at: { td, tof }, mine: true,
       note: `Leaves ${fmtDate(got.depT, false)}, ${fmtDur(got.ta - got.depT, true)} to get there.` };
     o.dv = o.nodes.reduce((a, n) => a + specDv(n), 0); o.startT = Math.min(...o.nodes.map(n => n.t));
@@ -2680,7 +2698,7 @@ select.field option { background: #0e121e; }
       ${inward ? `<p><b>Going inward is not downhill.</b> To fall toward ${P.the} you have to cancel some of the ${kmps(len(B.orb.v0))} ${B.the} carries you round it, and you arrive going fast. ${P === SUN && T.orb.a < B.orb.a * 0.6 ? `Going out first and braking far away (a <b>bi-elliptic</b> transfer) only pays when the orbits differ by about 12 times or more; ${poss(T)} is only ${(B.orb.a / T.orb.a).toFixed(1)} times smaller than ${poss(B)}, so it costs more here (compare it below).` : ""}</p>` : ""}
       ${stay && T.mu > 1e7 ? `<p><b>Why does stopping cost so much?</b> You fall into ${poss(T)} deep well and pass low over it at ${kmps(Math.sqrt(cheap.vA ** 2 + 2 * T.mu / rpT))}; a low circular orbit there needs only ${kmps(Math.sqrt(T.mu / rpT))}. Real orbiters such as Juno and Cassini brake just enough to be caught on a long, loose ellipse, a few hundred m/s to a couple of km/s. Untick <b>stay in orbit</b> to see the cost of getting there alone.</p>` : ""}
       ${P === SUN ? `<p>Real missions to Mercury and to the outer planets save a great deal of fuel with <b>gravity assists</b>, swinging past other planets on the way. This planner leaves those out for now.</p>` : ""}
-      <p>The <b>porkchop plot</b> shows the fuel for every departure date (across) and trip time (up): darker is cheaper. Click anywhere on it to plan that one.</p>`;
+      <p>The <b>porkchop plot</b> shows the fuel for every departure date (across) and trip time (up): the brighter, the less fuel. The numbered rings are the ways listed above; click one to show it, or click anywhere else to plan that departure.</p>`;
     const pork = { pk, label: k => `${fmtDate(k, false)}` };
     if (!offerChoice(`Ways to ${T.the}`, opts, { why, pork })) toast(`Couldn't turn a transfer to ${T.the} into burns from this orbit. Try a lower, closed orbit round ${B.the}.`);
     else toast(choice ? `${ways()} to ${T.the}, compared in the Manoeuvre panel, with why. Click one to see it on the map.` : `Transfer to ${T.the} planned.`, 9000);
@@ -2728,7 +2746,7 @@ select.field option { background: #0e121e; }
         note: `Burns ${r.depT - sim.t > 2 * DAY ? `on ${fmtDate(r.depT, false)}, in ${fmtDur(r.depT - sim.t, true)}` : `in ${fmtDur(r.depT - sim.t, true)}`}, ${fmtDur(r.ta - r.depT, true)} to ${T.the}, meeting it at ${kmps(r.vinfA)}${stay ? `, then brakes ${fmtDv(r.dvA)} into orbit` : ""}.` });
     });
     const why = `<p>You and ${T.the} both circle ${P.the}, at different speeds, so you line up the same way once every ${fmtDur(syn, true)}. The cheapest way across is close to half an ellipse touching both orbits (a <b>Hohmann transfer</b>, about ${fmtDur(tH, true)}), started when ${T.the} will be at the far end as you arrive. Quicker paths cut across at a steeper angle and arrive faster, which costs more to brake.</p>
-      <p>The <b>porkchop plot</b> shows the fuel for every burn time (across) and trip time (up): darker is cheaper. Click anywhere on it to plan that one.</p>`;
+      <p>The <b>porkchop plot</b> shows the fuel for every burn time (across) and trip time (up): the brighter, the less fuel. The numbered rings are the ways listed above; click one to show it, or click anywhere else to plan that departure.</p>`;
     if (!offerChoice(`Ways to ${T.the}`, opts, { why, pork: { pk } })) toast(`Couldn't turn a transfer to ${T.the} into burns from this path.`);
     else toast(choice ? `${ways()} to ${T.the}, compared in the Manoeuvre panel. Click one to see it on the map.` : `Transfer to ${T.the} planned.`, 9000);
     if (choice) choice.pick = (td, tof) => { const c = cost(td, tof); return c && realiseDirect(leg, T, td, td + tof, c.pro, rpT, stay); };
