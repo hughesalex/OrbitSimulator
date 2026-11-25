@@ -3535,7 +3535,15 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
     const mx = e.clientX - r.left, my = e.clientY - r.top, hit = (c.markers || []).find(m => Math.hypot(m.px - mx, m.py - my) <= 9);
     if (hit) { applyChoice(hit.i); return; }
     const td = pk.t0 + (e.clientX - r.left) / r.width * pk.span, tof = pk.tofLo + (1 - (e.clientY - r.top) / r.height) * (pk.tofHi - pk.tofLo);
-    const got = c.pick(td, tof);
+    // work it out from the plan as it was before this choice: the way on show now is in sim.nodes, and the new burns
+    // would otherwise be tried after it
+    const shown = sim.nodes;
+    let got = null;
+    sim.nodes = shown.filter(n => !c.ids.includes(n.id));
+    try {
+      got = c.pick(td, tof);
+      if (got) { const tr = trial(got.nodes); if (!tr.ok || tr.legs[tr.legs.length - 1].end === "impact" || !(got.ta > got.depT)) got = null; }
+    } finally { sim.nodes = shown; }
     if (!got) { toast("That one can't be flown from this orbit: try a brighter spot."); return; }
     const o = { name: "Your pick from the plot", nodes: got.nodes, doneT: got.doneT, at: { td, tof }, mine: true,
       note: `Leaves ${fmtDate(got.depT, false)}, ${fmtDur(got.ta - got.depT, true)} to get there.` };
