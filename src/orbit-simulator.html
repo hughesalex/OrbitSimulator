@@ -521,7 +521,7 @@ select.field option { background: #0e121e; }
     <label class="caption" for="follow">Follow</label>
     <select class="field" id="follow" title="Keep a body, or your craft, in the centre of the view. You can also click a body's name on the map."></select>
     <button class="btn" id="eqBtn" type="button" aria-pressed="true" title="Show or hide the equatorial plane and the fixed reference direction">Equator</button>
-    <button class="btn" id="planeBtn" type="button" aria-pressed="false" title="Show your orbit's plane against the Moon's, and the line where they cross">Planes</button>
+    <button class="btn" id="planeBtn" type="button" aria-pressed="false" title="Show your orbit's plane against your target's (or, heading for another planet, against the way out for its launch window)">Planes</button>
     <button class="btn" id="manBtn" type="button" aria-pressed="true" title="Show or hide the manoeuvre planner">Planner</button>
     <button class="btn" id="elBtn" type="button" aria-pressed="true" title="Show or hide the orbital elements">Elements</button>
     <button class="btn" id="guideBtn" type="button" title="How to use this simulator">Guide</button>
@@ -564,6 +564,7 @@ select.field option { background: #0e121e; }
   <p><b>Fast exhaust, gentle push.</b> An ion engine's exhaust is ten times faster than chemistry, so it needs far less fuel, but its push is like the weight of a sheet of paper. Here every burn is instant; an ion engine would take weeks or months for the same change, spiralling slowly outward, and that slow climb out of a planet's pull costs more Δv than an instant burn deep in it.</p>
   <h3>Planes and launch windows</h3>
   <p><b>Planes</b> shows the plane of your orbit (gold) and the plane of the Moon's orbit (blue) as discs through Earth, the angle between them, and the dashed <b>line of nodes</b> where they cross. A cheap transfer stays in your plane, so it can only meet the Moon where the Moon's path crosses it: the markers show when the Moon next gets there. That is why a Moon transfer from a tilted orbit can mean waiting days.</p>
+  <p>Heading for another planet, the target's own plane matters little (the planets' orbits are within a few degrees of each other). What matters is the <b>way out</b>: the direction you must leave Earth's pull in for the launch window, shown as an orange arrow. Planes then compares your orbit with the <b>departure plane</b>, the plane through Earth that holds the way out and is nearest yours, and says what the tilt between them adds to the burn to leave. Launching into the departure plane, at the right time of day, makes it zero. Once you have picked a plan, the arrow shows that plan's own way out.</p>
   <p><b>Launch…</b> starts from the ground at Cape Canaveral, Baikonur, Kourou, Vostochny, Wenchang, Jiuquan, Tanegashima or Sriharikota. Pick where you're going first. For Earth orbit you launch straight away, due east (the least tilt, equal to the site's latitude) or at a steeper tilt that costs more. For the Moon you get a list of launch times, about two a day, each one setting up a parking orbit whose plane will hold the Moon when you arrive; the planner then lays out the ways to get there.</p>
   <h3>Getting a better look</h3>
   <p><b>3D</b>, <b>Top-down</b> (from above the North Pole) and <b>Face-on</b> (square to the orbit's plane) swing the camera round; <b>Fit</b> zooms to the whole orbit and plan. <b>Follow</b> keeps the craft, the Sun or any planet or moon in the centre as it moves; click a body's label on the map to follow it. Zoom out far enough and you see the whole Solar System, with a dated line ahead of the craft as it crosses between the planets. Following Earth, the path bends where it leaves Earth's influence: inside, it is drawn around Earth, at the few km/s you move relative to it; beyond, it is drawn around the Sun, where Earth's own 30 km/s round the Sun is added to that, so the line swings to follow Earth's orbit. The bend is where the drawing changes viewpoint, not a burn. If the burn to leave is a long way off, say at the next launch window to Mars, Earth will have moved on by then: the way out is drawn round a faint copy of Earth labelled "Earth when you leave", so the path round the Sun sits exactly where it will be, against the orbit lines. Follow the Sun to see the whole path round it at once.</p>
@@ -1375,8 +1376,123 @@ select.field option { background: #0e121e; }
     if (T && B === SUN && T.parent && T.parent.parent === SUN) return T.parent;
     return B === EARTH ? MOON : B === SUN ? EARTH : B.kids[0] || null;
   }
+  // Heading for another planet (or another moon of the same planet), what matters is not the target's plane but the
+  // direction you leave your body's pull in (v∞) for the launch window: a burn from a parking orbit whose plane holds
+  // that direction sends you straight out along it, and any tilt from it has to be turned out of the burn. The way out
+  // comes from the plan you picked, if it leaves your body, or else from the cheapest window (worked out once, and
+  // again when it has gone by). Null unless the target picked under "Transfer to" goes round the same body as B.
+  const outCache = new Map();
+  function departureFor(B) {
+    const T = transferTarget();
+    if (!T || B === SUN || T === B || T.parent !== B.parent) return null;
+    for (let k = 0; k + 1 < traj.length; k++) {
+      const l = traj[k];
+      if (l.body === B && l.end === "soi" && traj[k + 1].body === B.parent && l.endT > sim.t) {
+        const v = stateAt(l.orb, l.endT).v;
+        return { T, d: unit(v), vi: len(v), t: l.endT, planned: true };
+      }
+    }
+    const o = sim.orbit, key = `${B.name}>${T.name} ${o.body === B ? o.W.map(x => x.toFixed(3)) : ""} ${$("xferAlt").value} ${$("xferStay").checked}`;
+    let c = outCache.get(key);
+    if (!c || c.until < sim.t) { c = windowOut(B, T) || { until: sim.t + DAY }; outCache.set(key, c); }
+    return c.d ? { T, d: c.d, vi: c.vi, t: c.t } : null;
+  }
+  function windowOut(B, T) {
+    const P = B.parent, o = sim.orbit.body === B ? sim.orbit : null;
+    const syn = 1 / Math.abs(1 / B.orb.period - 1 / T.orb.period), aT = (B.orb.a + T.orb.a) / 2, tH = Math.PI * Math.sqrt(aT ** 3 / P.mu);
+    const t0 = sim.t + 3600, span = Math.min(syn * 1.1, 6 * YEAR);
+    // the planner's own measure, so the window is the one it would pick: leave from low down, paying to turn out of
+    // your orbit's plane if the way out is tilted from it, and brake into orbit if asked to stay
+    const r0 = o && o.e < 1 ? o.rp : B.R * 1.1, vp0 = o && o.e < 1 ? Math.sqrt(o.mu * (2 / r0 - 1 / o.a)) : Math.sqrt(B.mu / r0), rpT = T.R + (+$("xferAlt").value || 100), stay = $("xferStay").checked;
+    const cost = (td, tof) => {
+      const sB = relState(B, td), sT = relState(T, td + tof);
+      let best = null;
+      for (const pro of [true, false]) {
+        const lam = lambert(sB.r, sT.r, tof, P.mu, B.orb.W, pro);
+        if (!lam) continue;
+        const vi = sub(lam.v1, sB.v), vD = len(vi), vA = len(sub(lam.v2, sT.v));
+        const vh = Math.sqrt(vD * vD + 2 * B.mu / r0), cd = o ? Math.sqrt(1 - (dot(vi, o.W) / vD) ** 2) : 1;
+        const tot = Math.sqrt(vp0 * vp0 + vh * vh - 2 * vp0 * vh * cd) + (stay ? Math.sqrt(vA * vA + 2 * T.mu / rpT) - Math.sqrt(T.mu / rpT) : 0);
+        if (isFinite(tot) && (!best || tot < best.tot)) best = { td, tof, tot, vi };
+      }
+      return best;
+    };
+    const pk = porkchop(t0, span, tH * 0.3, tH * 1.5, cost);
+    let c = pk.pick(() => true);
+    if (!c) return null;
+    const first = pk.pick(td => td < t0 + syn * 0.55);
+    if (first && first.tot <= c.tot * 1.02 + 0.05) c = first;
+    // the burn comes an hour or so before you cross the edge of the sphere of influence: near enough the window
+    return { d: unit(c.vi), vi: len(c.vi), t: c.td, until: c.td };
+  }
+  // the angle between your orbit's plane and the way out: 0 when the plane holds it
+  const tiltOut = (o, D) => Math.asin(Math.min(1, Math.abs(dot(o.W, D.d))));
+  // what the planes row compares with for an orbit round B, so the panel can tell when that changes
+  const planeKey = B => { const D = departureFor(B); return D ? `out ${D.T.name}` : planeTarget(B); };
+
+  // the arrow for the way out
+  const outArrow = (() => {
+    const g = new THREE.Group();
+    const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xf0a46a, transparent: true, opacity: 0.9, depthWrite: false }));
+    line.frustumCulled = false;
+    const head = new THREE.Mesh(new THREE.ConeGeometry(1, 3, 16), new THREE.MeshBasicMaterial({ color: 0xf0a46a, transparent: true, opacity: 0.9, depthWrite: false }));
+    g.add(line, head); g.line = line; g.head = head; g.visible = false;
+    planeGroup.add(g);
+    return g;
+  })();
+  const Y_UP = new THREE.Vector3(0, 1, 0);
+  // your plane against the departure plane: the plane through B that holds the way out and is closest to yours
+  function updateDeparture(D, out) {
+    const o = sim.orbit, B = o.body, c = B.pos;
+    const R = Math.max(o.e < 1 ? o.ra * 4 : 0, B.R * 5);
+    sizeDiscs(R / KM, B.R * 1.05 / KM);
+    const PLANE_R = planeR * KM;
+    let nD = sub(o.W, mul(D.d, dot(o.W, D.d)));
+    nD = len(nD) > 1e-9 ? unit(nD) : unit(cross(D.d, Math.abs(D.d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]));
+    alignDisc(craftDisc, o.W); alignDisc(targetDisc, nD);
+    // the arrow, from the surface out past the discs
+    const a = toScene(mul(D.d, B.R * 1.05)), b = toScene(mul(D.d, PLANE_R * 1.0)), hl = PLANE_R / KM * 0.06;
+    const lp = outArrow.line.geometry.attributes.position;
+    lp.setXYZ(0, a.x, a.y, a.z); lp.setXYZ(1, b.x, b.y, b.z); lp.needsUpdate = true;
+    outArrow.head.scale.set(hl * 0.35, hl * 0.35, hl * 0.35);
+    outArrow.head.position.copy(b);
+    outArrow.head.quaternion.setFromUnitVectors(Y_UP, b.clone().sub(a).normalize());
+    outArrow.visible = true;
+    const when = D.planned ? "as planned" : `for the window ${fmtDate(D.t, false)}${D.t - sim.t > 2 * DAY ? `, in ${fmtDur(D.t - sim.t, true)}` : ""}`;
+    out.push({ text: `Way out to ${D.T.name}, ${when}`, pos: toScene(mul(D.d, PLANE_R * 1.06)).add(c), key: "tilt" });
+    const ang = tiltOut(o, D);
+    nodeLine.visible = wedge.visible = ang > 0.1 * DEG;
+    if (!nodeLine.visible) { out.push({ text: `Your orbit's plane holds the way out: no turning needed`, pos: toScene(mul(o.P, o.rp * 1.4)).add(c), key: "tilt" }); return out; }
+    const n = unit(cross(o.W, nD));
+    const p = nodeLine.geometry.attributes.position;
+    const na = toScene(mul(n, PLANE_R)), nb = toScene(mul(n, -PLANE_R));
+    p.setXYZ(0, na.x, na.y, na.z); p.setXYZ(1, nb.x, nb.y, nb.z); p.needsUpdate = true;
+    nodeLine.material.dashSize = PLANE_R / KM * 0.012; nodeLine.material.gapSize = PLANE_R / KM * 0.008;
+    nodeLine.computeLineDistances();
+    // the wedge, from your plane up to the way out
+    const u1 = unit(cross(o.W, n)), u2 = unit(cross(nD, n));
+    const Rw = clamp(camera.position.distanceTo(c) * 0.16, B.R / KM * 1.6, planeR * 0.6) * KM;
+    const w = wedge.geometry.attributes.position, v = new THREE.Vector3();
+    w.setXYZ(0, 0, 0, 0);
+    for (let k = 0; k <= ARC_N; k++) {
+      const f = k / ARC_N, s1 = Math.sin((1 - f) * ang) / Math.sin(ang), s2 = Math.sin(f * ang) / Math.sin(ang);
+      toScene(mul(add(mul(u1, s1), mul(u2, s2)), Rw), v); w.setXYZ(k + 1, v.x, v.y, v.z);
+    }
+    w.setXYZ(ARC_N + 2, 0, 0, 0); w.needsUpdate = true;
+    out.push({ text: "your orbit's plane", pos: toScene(mul(u1, PLANE_R * 0.6)).add(c), minor: true });
+    out.push({ text: `departure plane for ${D.T.name}`, pos: toScene(mul(mul(u2, -1), PLANE_R * 0.6)).add(c), minor: true });
+    // what the tilt costs: the planner's measure, a burn from your orbit's speed to the escape speed, turned by the angle
+    const r0 = o.e < 1 ? o.a : o.rp, vc = Math.sqrt(B.mu / r0), vh = Math.sqrt(D.vi * D.vi + 2 * B.mu / r0);
+    const extra = Math.sqrt(vc * vc + vh * vh - 2 * vc * vh * Math.cos(ang)) - (vh - vc);
+    out.push({ text: `${(ang / DEG).toFixed(1)}° off the way out: about ${fmtDv(extra * 1000)} more to leave`, pos: toScene(mul(unit(add(u1, u2)), Rw * 1.08)).add(c), key: "tilt" });
+    return out;
+  }
   // Updates the planes for this frame and returns the labels to place: the wedge, and where the target crosses your plane.
   function updatePlanes() {
+    const o0 = sim.orbit, D = departureFor(o0.body);
+    outArrow.visible = false;
+    if (D) { planeGroup.visible = true; planeGroup.position.copy(o0.body.pos); return updateDeparture(D, []); }
     const o = sim.orbit, B = o.body, T = planeTarget(B), out = [];
     planeGroup.visible = !!T;
     if (!T) return out;
@@ -1629,8 +1745,8 @@ select.field option { background: #0e121e; }
       x: "The tilt of the orbit's plane against the equator of the body you orbit (round the Sun, against the <b>ecliptic</b>, the plane of Earth's orbit). <b>0°</b> follows the equator, <b>90°</b> passes over the poles, over 90° goes round backwards (retrograde), as Triton does round Neptune. Change it with a <b>normal</b> or <b>anti-normal</b> burn where the planes cross. It is costly: 1° at low Earth orbit takes about 135 m/s, which is why launch sites near the equator are prized." },
     { k: "raan", name: "Ascending node", mark: "an", f: o => o.equatorial ? "—" : fmtDeg(o.raan),
       x: "Longitude of the ascending node: where the orbit crosses the equator heading north (<b>AN</b>), measured eastward from a fixed reference direction (the gold line: for Earth and the Sun, ♈︎, toward the March equinox point among the stars; for other bodies, where their equator crosses Earth's). With inclination it fixes the orbit's plane in space. An orbit lying exactly in the equator has no ascending node, shown as —." },
-    { k: "tilt", name: "Tilt to target's orbit", mark: "tilt", f: o => { const T = planeTarget(o.body); return T ? `${fmtDeg(tiltTo(o, T))}` : "—"; },
-      x: "The angle between the plane of your orbit and the plane in which your target (picked under <b>Transfer to</b>, or else the best-known moon) circles the same body. The two planes cross along a line through its centre, the <b>line of nodes</b>. A cheap transfer stays in your plane, so it can only meet the target where the target's path crosses that plane: the target has to be near the line of nodes when you arrive. For the Moon that happens about every 13.7 days, which is why a transfer can mean waiting days in orbit. Press <b>Planes</b> to see them. Launching at the right moment, as <b>Launch</b> does, puts the Moon in your plane from the start." },
+    { k: "tilt", name: "Tilt to target's orbit", mark: "tilt", f: o => { const D = departureFor(o.body); if (D) return fmtDeg(tiltOut(o, D)); const T = planeTarget(o.body); return T ? `${fmtDeg(tiltTo(o, T))}` : "—"; },
+      x: "Heading for another planet (or another moon of the same planet), the angle between your orbit's plane and the <b>way out</b>: the direction you have to leave in for the launch window. A burn from an orbit whose plane holds it sends you straight off; any tilt has to be turned out of the burn, which costs extra. Otherwise, the angle between the plane of your orbit and the plane in which your target (picked under <b>Transfer to</b>, or else the best-known moon) circles the same body. The two planes cross along a line through its centre, the <b>line of nodes</b>. A cheap transfer stays in your plane, so it can only meet the target where the target's path crosses that plane: the target has to be near the line of nodes when you arrive. For the Moon that happens about every 13.7 days, which is why a transfer can mean waiting days in orbit. Press <b>Planes</b> to see them. Launching at the right moment, as <b>Launch</b> does, puts the Moon in your plane from the start." },
     { k: "w", name: "Arg. of periapsis", mark: "pe", f: o => isNaN(o.argp) ? "—" : fmtDeg(o.argp),
       x: "The angle, within the orbit's plane, from the ascending node round to periapsis: which way the ellipse points. Molniya orbits use 270° so their slow, high apoapsis hangs over the northern hemisphere. For an equatorial orbit this shows the longitude of periapsis instead; a perfectly circular orbit has no periapsis, shown as —." },
     { g: "Where you are", now: true },
@@ -1686,12 +1802,12 @@ select.field option { background: #0e121e; }
     ROWS.forEach(r => {
       if (!r.el) return;
       if (r.k === "ap" || r.k === "pe") r.el.children[0].textContent = (r.k === "ap" ? apName : peName)(o.body);
-      if (r.k === "tilt") { const T = planeTarget(o.body); r.el.children[0].textContent = T ? `Tilt to ${poss(T)} orbit` : "Tilt to a moon's orbit"; }
+      if (r.k === "tilt") { const D = departureFor(o.body), T = planeTarget(o.body); r.el.children[0].textContent = D ? `Tilt from the way out to ${D.T.name}` : T ? `Tilt to ${poss(T)} orbit` : "Tilt to a moon's orbit"; }
       const now = r.el.children[1], after = r.el.children[2];
       now.textContent = r.f(o, cur);
       now.classList.toggle("warn", !!(r.warn && r.warn(o)));
       // the tilt row names one target for the body you orbit now: round another body it would mean a different one
-      after.textContent = fin && !r.now ? (r.k === "tilt" && planeTarget(fin.body) !== planeTarget(o.body) ? "—" : r.f(fin, null)) : "";
+      after.textContent = fin && !r.now ? (r.k === "tilt" && planeKey(fin.body) !== planeKey(o.body) ? "—" : r.f(fin, null)) : "";
     });
   }
 
