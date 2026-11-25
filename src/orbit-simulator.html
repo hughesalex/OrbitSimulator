@@ -3305,7 +3305,7 @@ select.field option { background: #0e121e; }
     closeChoice(); inspect = null;
     clearNodeEls(); sim.nodes = []; sim.sel = null;
     history.length = 0; handBurn = null; syncUndo();
-    setWarp(sc.warp); setPlaying(true);
+    setWarp(sc.warp); setPlaying(false);   // start paused: press Play when ready, so no launch window slips by (and the GPU rests)
     buildTrajectory(); refreshPanel();
     focus = sc.body || EARTH; markFocus();
     viewBody = focus; placeBodies(); controls.minDistance = minDistFor();
@@ -3835,8 +3835,17 @@ select.field option { background: #0e121e; }
       else if (r.left + r.width / 2 < W / 2) L = Math.max(L, r.right);
       else R = Math.min(R, r.left);
     }
-    if (R - L < W * 0.3) { L = 0; R = W; }       // never squeeze the picture into a sliver
-    if (B - T < H * 0.25) { T = 0; B = H; }
+    // the title plate in the top corner: cut it off the top or the side of the open area, whichever leaves more
+    // never squeeze the picture into a sliver (on a small screen a strip a few hundred pixels across will do)
+    const roomy = (l, r, t, b) => r - l >= Math.min(W * 0.3, 160) && b - t >= Math.min(H * 0.25, 120);
+    if (R - L < Math.min(W * 0.3, 160)) { L = 0; R = W; }
+    if (B - T < Math.min(H * 0.25, 120)) { T = 0; B = H; }
+    const t = $("title").getBoundingClientRect();
+    if (t.width && t.right > L && t.left < R && t.bottom > T && t.top < B) {
+      const top = (R - L) * (B - Math.max(T, t.bottom)), side = (R - Math.max(L, t.right)) * (B - T);
+      const T2 = top >= side ? Math.max(T, t.bottom) : T, L2 = top >= side ? L : Math.max(L, t.right);
+      if (roomy(L2, R, T2, B)) { T = T2; L = L2; }
+    }
     return { L, R, T, B, w: R - L, h: B - T };
   }
   const aim = { x: 0, y: 0, tx: 0, ty: 0, room: 0 };   // shift of the picture's centre in pixels (now and target), and the room it had
