@@ -28,4 +28,4 @@ The physics is exact two-body motion (Kepler's laws) with instant node burns, pa
 
 `orbit-simulator.html` is the whole app: a single file that works offline. Use the [live page](https://hughesalex.github.io/OrbitSimulator/orbit-simulator.html), or download the file and open it straight from disk in a browser.
 
-It is built from `src/orbit-simulator.html` by `build.sh`, which embeds the files in `vendor/`: fonts, three.js r128 and its OrbitControls, the Sun, planet, Moon and ring maps from Solar System Scope (CC BY 4.0), all taken from the Orrery, plus `sky.js` with the bright-star catalogue and cloud map. Edit the source, then run `bash build.sh`.
+It is built from `src/orbit-simulator.html` by `build.sh`, which embeds the files in `vendor/`: fonts, three.js r128 and its OrbitControls, the Sun, planet, Moon and ring maps from Solar System Scope (CC BY 4.0), all taken from the Orrery, the other moons' maps from NASA 3D Resources (public domain), plus `sky.js` with the bright-star catalogue and cloud map. Edit the source, then run `bash build.sh`.
