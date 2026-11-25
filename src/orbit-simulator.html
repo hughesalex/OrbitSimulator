@@ -346,7 +346,7 @@ select.field option { background: #0e121e; }
   #title h1 { font-size: 17px; }
   #man, #elements {
     top: auto; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto;
-    bottom: var(--bar-space, 140px); max-height: min(50%, calc(100% - var(--bar-space, 140px) - 110px)); z-index: 3;
+    bottom: var(--bar-space, 140px); max-height: min(50%, calc(100% - var(--bar-space, 140px) - max(160px, 30%))); z-index: 3;   /* always leave room above for the view */
   }
   /* drag a panel's heading up or down to resize it */
   #man, #elements { padding-top: 4px; }
@@ -3826,6 +3826,7 @@ select.field option { background: #0e121e; }
   // The camera still looks at Earth (or the craft); the picture is shifted so that point lands in the middle of the open area.
   function freeRect() {
     let L = 0, R = W, T = 0, B = H;
+    const cr = $("controls").getBoundingClientRect(), ctl = cr.height ? cr.top : H;
     for (const id of ["man", "elements", "controls"]) {
       const el = $(id);
       if (el.hidden) continue;
@@ -3839,7 +3840,7 @@ select.field option { background: #0e121e; }
     // never squeeze the picture into a sliver (on a small screen a strip a few hundred pixels across will do)
     const roomy = (l, r, t, b) => r - l >= Math.min(W * 0.3, 160) && b - t >= Math.min(H * 0.25, 120);
     if (R - L < Math.min(W * 0.3, 160)) { L = 0; R = W; }
-    if (B - T < Math.min(H * 0.25, 120)) { T = 0; B = H; }
+    if (B - T < Math.min(H * 0.25, 120)) { T = 0; B = Math.max(H * 0.5, ctl); }     // (the bar along the bottom still covers)
     const t = $("title").getBoundingClientRect();
     if (t.width && t.right > L && t.left < R && t.bottom > T && t.top < B) {
       const top = (R - L) * (B - Math.max(T, t.bottom)), side = (R - Math.max(L, t.right)) * (B - T);
