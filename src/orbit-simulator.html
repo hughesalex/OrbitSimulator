@@ -1060,12 +1060,11 @@ select.field option { background: #0e121e; }
   // Where to draw each leg, so the path reads as one unbroken line from the craft onward. The body you orbit now
   // (and the ones it circles) are drawn where they are now, and the first leg with them. After that:
   //  - entering a moon or planet, it is drawn where it will be then, so the path meets it;
-  //  - leaving a planet for the space round the Sun, the Sun stays put, so the path round it has its true shape
-  //    against the orbit lines, whichever body you follow; the planned legs round the planet are drawn about where
-  //    it will be when you leave (a faint copy of it), so the way out joins the path round the Sun;
-  //  - leaving a moon for its planet while you follow the moon (or a moon of it), the path round the planet carries
-  //    straight on from where it leaves, so the planet's frame is shifted by the moon's motion until then; following
-  //    the planet or further out, the planet stays put and the moon is copied as above.
+  //  - leaving a planet for the space round the Sun, or a moon for its planet, the parent stays put, so the path round
+  //    it has its true shape against the orbit lines, whichever body you follow; the planned legs round the body you
+  //    leave are drawn about where it will be when you leave (a faint copy of it), so the way out joins the path round
+  //    the parent. (Shifting the parent's frame instead, to carry the line straight on, put the path round Jupiter
+  //    nowhere near Europa's orbit for a departure a day or two off.)
   // Only for a departure far in the future is the copy far from where the body is now.
   function anchorLegs(V) {
     if (!traj.length) return;
@@ -1080,8 +1079,8 @@ select.field option { background: #0e121e; }
       if (C.parent === B) {                                  // into a moon or planet: where it will be then
         leg.anchor = add(prev.anchor, relState(C, te).r); leg.refT = te; leg.ghost = "meet";
       } else {                                               // out to the parent
-        const fromNow = traj.slice(0, k).every(l => l.body === B), close = C !== SUN && (B === V || isAncestor(B, V));
-        if (close || !set.has(C)) {
+        const fromNow = traj.slice(0, k).every(l => l.body === B);
+        if (!set.has(C)) {
           leg.anchor = sub(prev.anchor, relState(B, te).r); leg.refT = te;
         } else {
           leg.anchor = set.get(C); leg.refT = now;
