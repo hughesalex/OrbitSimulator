@@ -124,6 +124,7 @@
 }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }   /* no font boosting on phones: the layout below is sized for the real text */
 body {
   margin: 0; background: var(--sky); color: var(--fg);
   font-family: var(--font-body); font-size: 14px;
@@ -449,6 +450,41 @@ select.field option { background: #0e121e; }
   #controls { padding: 8px 10px; gap: 8px; }
   #toast { top: calc(env(safe-area-inset-top, 0px) + 130px); }
 }
+/* On a phone (or a phone on its side) the screen is only about 360-430 px across in CSS pixels, however sharp it is,
+   so the readout shrinks to a few lines (tap it to fold it down to the clock) and the control bar to two rows:
+   Play, Undo, Planner, Elements and a ⋯ button that opens the rest (start, view, follow, guide) above them. */
+#moreBtn { display: none; }
+@media (max-width: 600px), (max-height: 500px) {
+  #title { padding: 6px 10px; gap: 2px; cursor: pointer; top: calc(env(safe-area-inset-top, 0px) + 8px); left: max(8px, env(safe-area-inset-left, 0px)); max-width: calc(100% - 16px); }
+  #title h1 { display: none; }
+  #met { font-size: 13px; }
+  #readout { grid-template-columns: auto auto auto auto; column-gap: 8px; font-size: 11px; line-height: 1.3; }
+  #readout dd:first-of-type { grid-column: span 3; text-align: left; }
+  #readout dd { text-align: left; }
+  #title.min #readout { display: none; }
+  #controls { bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); width: calc(100% - 16px); padding: 6px 8px; gap: 6px 8px; }
+  #controls .group { order: 0; }
+  #controls .warp { order: 1; flex: 1 1 100%; }
+  #controls .group.main { order: 2; flex: 1 1 100%; flex-wrap: nowrap; }
+  #controls .group.main button.btn { padding: 6px 8px; }
+  #controls:not(.more) .group:not(.main):not(.warp) { display: none; }
+  #controls .warp label { display: none; }
+  #moreBtn { display: inline-block; margin-left: auto; min-width: 36px; font-size: 15px; line-height: 1; }
+  #play { min-width: 58px; }
+  #undo .long { display: none; }
+  #man, #elements { left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); bottom: var(--bar-space, 100px);
+    max-height: min(50%, calc(100% - var(--bar-space, 100px) - max(140px, 28%))); }
+  #toast { top: calc(env(safe-area-inset-top, 0px) + 116px); }
+}
+/* a phone on its side: the bar fits on one row, and the panels sit at the right, leaving the view the left two thirds */
+@media (max-height: 500px) and (min-width: 601px) {
+  #controls { flex-wrap: nowrap; }
+  #controls .group.main { order: 1; flex: none; }
+  #controls .warp { order: 2; flex: 1 1 auto; }
+  #controls.more { flex-wrap: wrap; }
+  #man, #elements { left: auto; width: min(380px, 48%); max-height: calc(100% - var(--bar-space, 60px) - 8px); }
+  #toast { top: calc(env(safe-area-inset-top, 0px) + 8px); left: auto; right: 8px; transform: none; max-width: min(380px, 48%); }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -574,9 +610,10 @@ select.field option { background: #0e121e; }
 </aside>
 
 <div id="controls" class="plate" role="toolbar" aria-label="Simulation controls">
-  <div class="group">
+  <div class="group main">
     <button class="btn" id="play" type="button">Pause</button>
-    <button class="btn" id="undo" type="button" title="Undo the last burn, whether planned or flown by hand (Ctrl+Z)" disabled>Undo burn</button>
+    <button class="btn" id="undo" type="button" title="Undo the last burn, whether planned or flown by hand (Ctrl+Z)" disabled>Undo<span class="long"> burn</span></button>
+    <button class="btn" id="moreBtn" type="button" aria-expanded="false" aria-label="More controls" title="More controls: start, view, follow and the guide">⋯</button>
   </div>
   <div class="group warp">
     <label class="caption" for="warp">Warp</label>
@@ -5198,6 +5235,26 @@ const CLOUD_TEX = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQ
   const fitBar = () => document.documentElement.style.setProperty("--bar-space", `${window.innerHeight - barEl.getBoundingClientRect().top + 10}px`);
   if (window.ResizeObserver) new ResizeObserver(fitBar).observe(barEl);
   window.addEventListener("resize", fitBar);
+  fitBar();
+  // ---------- phone layout: a small readout and a two-row control bar (see the stylesheet) ----------
+  const compactMQ = window.matchMedia("(max-width: 600px), (max-height: 500px)");
+  const moreBtn = $("moreBtn"), followGroup = $("guideBtn").parentElement;
+  function setMore(on) { barEl.classList.toggle("more", on); moreBtn.setAttribute("aria-expanded", String(on)); moreBtn.setAttribute("aria-pressed", String(on)); }
+  moreBtn.addEventListener("click", () => setMore(!barEl.classList.contains("more")));
+  // the extra rows close once they've done their job, or when you go back to the view
+  ["guideBtn", "launchBtn", "restart"].forEach(id => $(id).addEventListener("click", () => { if (compactMQ.matches) setMore(false); }));
+  canvas.addEventListener("pointerdown", () => { if (compactMQ.matches) setMore(false); });
+  // Planner and Elements go on the main row with Play, so the panels are one tap away
+  function placeToggles() {
+    const into = compactMQ.matches ? moreBtn.parentElement : followGroup;
+    const before = compactMQ.matches ? moreBtn : $("guideBtn");
+    ["manBtn", "elBtn"].forEach(id => into.insertBefore($(id), before));
+    if (!compactMQ.matches) { setMore(false); $("title").classList.remove("min"); }
+  }
+  if (compactMQ.addEventListener) compactMQ.addEventListener("change", placeToggles); else compactMQ.addListener(placeToggles);
+  placeToggles();
+  // tap the readout to fold it down to the mission clock
+  $("title").addEventListener("click", () => { if (compactMQ.matches) $("title").classList.toggle("min"); });
   fitBar();
   resize();
 
